@@ -1,0 +1,17 @@
+{
+  "name": "Lytx DVIR Compliance",
+  "supportEmail": "admin@lytx.com",
+  "version": "1.0.0",
+  "items": [
+    {
+      "url": "https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/index.html",
+      "path": "ActivityLink",
+      "menuName": {
+        "en": "Lytx DVIR Compliance"
+      },
+      "category": "ComplianceId",
+      "svgIcon": "https://YOUR-USERNAME.github.io/YOUR-REPO-NAME/icon.svg"
+    }
+  ],
+  "files": {}
+}
