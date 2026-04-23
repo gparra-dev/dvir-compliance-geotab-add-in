@@ -76,13 +76,38 @@ var DVIRApp = (function() {
       gm[g.id] = g.name || g.id;
     });
 
+    // Geotab built-in group IDs to exclude when picking the display group
+    var BUILTIN_GROUPS = {
+      'GroupCompanyId': true,
+      'GroupAssetInformationId': true,
+      'GroupDriverActivityId': true,
+      'GroupNothingId': true,
+      'GroupUserViewSecurityId': true,
+      'GroupSecurityId': true,
+      'GroupDefectSeverityCriticalId': true,
+      'GroupDefectSeverityNonCriticalId': true,
+      'GroupPrivateUserDataId': true,
+      'GroupSuperVisorSecurityId': true,
+      'GroupEverythingSecurityId': true
+    };
+
     // Build device map: id -> { name, groupName }
     var dm = {};
     devices.forEach(function(d) {
       var gn = '';
       if (d.groups && d.groups.length > 0) {
-        var gid = d.groups[0].id;
-        gn = gm[gid] || gid || '';
+        // Skip built-in groups and pick the first real fleet group
+        for (var i = 0; i < d.groups.length; i++) {
+          var gid = d.groups[i].id;
+          if (!BUILTIN_GROUPS[gid]) {
+            gn = gm[gid] || gid || '';
+            break;
+          }
+        }
+        // Fall back to first group if all were built-in
+        if (!gn) {
+          gn = gm[d.groups[0].id] || d.groups[0].id || '';
+        }
       }
       dm[d.id] = { name: d.name || d.id, groupName: gn };
     });
@@ -148,7 +173,7 @@ var DVIRApp = (function() {
 
   function _fmt(m) {
     if (!m) return '0';
-    return _isMetric ? (m / 1000).toFixed(1) + ' km' : (m / 1609.344).toFixed(1) + ' mi';
+    return _isMetric ? m.toFixed(1) + ' km' : (m / 1.60934).toFixed(1) + ' mi';
   }
 
   function _updateSummary() {
