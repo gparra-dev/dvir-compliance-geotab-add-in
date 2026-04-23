@@ -76,6 +76,19 @@ var DVIRApp = (function() {
       gm[g.id] = { name: g.name || g.id, parent: g.parent && g.parent.id };
     });
 
+    // DEBUG: log first device's groups to console
+    if (devices.length > 0) {
+      var dbgDev = devices[0];
+      console.log('DEBUG device:', dbgDev.name);
+      console.log('DEBUG device.groups raw:', JSON.stringify(dbgDev.groups));
+      if (dbgDev.groups) {
+        dbgDev.groups.forEach(function(dg) {
+          var g = gm[dg.id];
+          console.log('  group id:', dg.id, '| name:', g ? g.name : '?', '| parent:', g ? g.parent : '?');
+        });
+      }
+    }
+
     // Calculate depth of a group by walking up the parent chain
     function _groupDepth(gid) {
       var depth = 0;
