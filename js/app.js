@@ -76,18 +76,6 @@ var DVIRApp = (function() {
       gm[g.id] = { name: g.name || g.id, parent: g.parent && g.parent.id };
     });
 
-    // DEBUG: log first device's groups to console
-    if (devices.length > 0) {
-      var dbgDev = devices[0];
-      console.log('DEBUG device:', dbgDev.name);
-      console.log('DEBUG device.groups raw:', JSON.stringify(dbgDev.groups));
-      if (dbgDev.groups) {
-        dbgDev.groups.forEach(function(dg) {
-          var g = gm[dg.id];
-          console.log('  group id:', dg.id, '| name:', g ? g.name : '?', '| parent:', g ? g.parent : '?');
-        });
-      }
-    }
 
     // Calculate depth of a group by walking up the parent chain
     function _groupDepth(gid) {
@@ -102,52 +90,31 @@ var DVIRApp = (function() {
       return depth;
     }
 
-    // System root group IDs — any group whose ancestry includes these is a built-in group
-    var SYSTEM_ROOTS = {
-      'GroupAssetInformationId': true,
-      'GroupDriverActivityId': true,
-      'GroupNothingId': true,
-      'GroupUserViewSecurityId': true,
-      'GroupSecurityId': true,
-      'GroupDefectSeverityCriticalId': true,
-      'GroupDefectSeverityNonCriticalId': true,
-      'GroupPrivateUserDataId': true,
-      'GroupSuperVisorSecurityId': true,
-      'GroupEverythingSecurityId': true
-    };
-
-    // Returns true if gid is a built-in group or descends from one
-    function _isBuiltin(gid) {
-      var visited = {};
-      var current = gid;
-      while (current) {
-        if (visited[current]) break;
-        visited[current] = true;
-        if (SYSTEM_ROOTS[current]) return true;
-        current = gm[current] && gm[current].parent;
-      }
-      return false;
+    // Geotab built-in group IDs always match the pattern /^Group[A-Z].*Id$/
+    // e.g. GroupVehicleId, GroupAssetInformationId, GroupGasolinePetrolId
+    // Real customer fleet group IDs are always short alphanumeric strings like 'b2842'
+    function _isBuiltinGroup(gid) {
+      return /^Group[A-Z]/.test(gid);
     }
 
-    // Build device map — pick the deepest non-built-in group
+    // Build device map — pick the first fleet group (non-built-in ID)
     var dm = {};
     devices.forEach(function(d) {
       var gn = '';
       if (d.groups && d.groups.length > 0) {
-        var bestId = null;
-        var bestDepth = -1;
-        d.groups.forEach(function(dg) {
-          var gid = dg.id;
-          if (_isBuiltin(gid)) return;  // skip built-in and all their children
-          var depth = _groupDepth(gid);
-          if (depth > bestDepth) { bestDepth = depth; bestId = gid; }
-        });
-        if (bestId) {
-          gn = (gm[bestId] && gm[bestId].name) || bestId;
+        var chosen = null;
+        for (var i = 0; i < d.groups.length; i++) {
+          var gid = d.groups[i].id;
+          if (!_isBuiltinGroup(gid)) {
+            chosen = gid;
+            break;
+          }
+        }
+        if (chosen) {
+          gn = (gm[chosen] && gm[chosen].name) || chosen;
         } else {
-          // All groups were built-in — fall back to first group name
-          var fid = d.groups[0].id;
-          gn = (gm[fid] && gm[fid].name) || fid;
+          // All groups were built-in — show nothing rather than a misleading name
+          gn = '';
         }
       }
       dm[d.id] = { name: d.name || d.id, groupName: gn };
