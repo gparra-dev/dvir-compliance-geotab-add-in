@@ -53,7 +53,8 @@ var DVIRApp = (function() {
     _api.multiCall([
       ['Get', { typeName: 'Trip',    search: tripSearch   }],
       ['Get', { typeName: 'DVIRLog', search: dvirSearch   }],
-      ['Get', { typeName: 'Device',  search: deviceSearch }]
+      ['Get', { typeName: 'Device',  search: deviceSearch }],
+      ['Get', { typeName: 'Group',   search: {}           }]
     ],
     function(results) {
       _process(results);
@@ -67,21 +68,33 @@ var DVIRApp = (function() {
     var trips   = (results && results[0]) || [];
     var dvirs   = (results && results[1]) || [];
     var devices = (results && results[2]) || [];
+    var groups  = (results && results[3]) || [];
+
+    // Build group lookup: id -> name
+    var gm = {};
+    groups.forEach(function(g) {
+      gm[g.id] = g.name || g.id;
+    });
 
     // Build device map: id -> { name, groupName }
     var dm = {};
     devices.forEach(function(d) {
       var gn = '';
-      if (d.groups && d.groups.length > 0) { gn = d.groups[0].id || ''; }
+      if (d.groups && d.groups.length > 0) {
+        var gid = d.groups[0].id;
+        gn = gm[gid] || gid || '';
+      }
       dm[d.id] = { name: d.name || d.id, groupName: gn };
     });
 
-    // Sum distance per device (meters)
+    // Sum distance per device — Geotab Trip.distance is in meters
     var dist = {};
     trips.forEach(function(t) {
       var did = t.device && t.device.id;
       if (!did) return;
-      dist[did] = (dist[did] || 0) + (t.distance || 0);
+      // distance can be a float in meters; default to 0 if missing
+      var d = (typeof t.distance === 'number') ? t.distance : 0;
+      dist[did] = (dist[did] || 0) + d;
     });
 
     // Count DVIR logs per device
