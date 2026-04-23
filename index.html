@@ -3,299 +3,131 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Lytx+ DVIR Compliance Report — Lytx</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;600;700&display=swap" rel="stylesheet">
+<title>Lytx DVIR Compliance</title>
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  /* ── Lytx Primary ── */
-  --lytx-dark-blue:#1F1446;
-  --lytx-light-blue:#009CDE;
-  /* ── Lytx Secondary ── */
-  --lytx-red:#CF4520;
-  --lytx-green:#84BD00;
-  --lytx-teal:#00859B;
-  --lytx-cerulean:#407EC9;
-  /* ── Lytx Grayscale ── */
-  --lytx-dark-gray:#425563;
-  --lytx-medium-gray:#98A4AE;
-  --lytx-light-gray:#C5CFDA;
-  --lytx-deep-gray:#28343C;
-  /* ── Lytx Gradients ── */
-  --grad-dark-start:#3D76BF;
-  --grad-dark-end:#1F1446;
-  --grad-light-start:#6ED4FF;
-  --grad-light-end:#009CDE;
-  /* ── Semantic ── */
-  --bg:var(--lytx-dark-blue);
-  --surface:var(--lytx-deep-gray);
-  --surface-mid:#2e3d47;
-  --border:rgba(152,164,174,0.18);
-  --border-strong:rgba(152,164,174,0.32);
-  --text:#FFFFFF;
-  --text-muted:var(--lytx-medium-gray);
-  --font:'Open Sans',Arial,sans-serif
-}
+/* All classes prefixed ldc- to avoid Geotab conflicts */
+/* No CSS variables — hardcoded hex for iframe compatibility */
 
-body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:14px;overflow-x:hidden}
-.app{display:flex;flex-direction:column;min-height:100vh}
+.ldc-wrap{font-family:Arial,sans-serif;font-size:14px;color:#FFFFFF;background:#1F1446;min-height:100vh;display:flex;flex-direction:column;box-sizing:border-box}
+.ldc-wrap *{box-sizing:border-box;margin:0;padding:0}
 
-/* ══ HEADER ══ */
-.header{
-  background:linear-gradient(135deg,var(--grad-dark-start) 0%,var(--grad-dark-end) 100%);
-  border-bottom:3px solid var(--lytx-light-blue);
-  padding:18px 28px;
-  display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap
-}
-.header-brand{display:flex;align-items:center;gap:14px}
+/* HEADER */
+.ldc-header{background:linear-gradient(135deg,#3D76BF 0%,#1F1446 100%);border-bottom:3px solid #009CDE;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.ldc-brand{display:flex;align-items:center;gap:12px}
+.ldc-logo{height:36px;max-height:36px;width:auto;max-width:120px;display:block;flex-shrink:0}
+.ldc-title{font-size:16px;font-weight:700;color:#FFFFFF}
+.ldc-sub{font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px;text-transform:uppercase;letter-spacing:0.8px}
+.ldc-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.ldc-date-label{font-size:10px;color:#98A4AE;text-transform:uppercase;letter-spacing:0.6px;font-weight:700}
+.ldc-date-input{background:rgba(255,255,255,0.08);border:1px solid rgba(152,164,174,0.4);color:#FFFFFF;padding:7px 10px;border-radius:3px;font-size:13px;font-family:Arial,sans-serif;outline:none}
+.ldc-run-btn{padding:8px 18px;border-radius:3px;font-size:12px;font-weight:700;cursor:pointer;border:none;background:#009CDE;color:#FFFFFF;text-transform:uppercase;letter-spacing:0.5px;font-family:Arial,sans-serif}
+.ldc-run-btn:hover{background:#6ED4FF}
+.ldc-run-btn:disabled{opacity:0.5;cursor:not-allowed}
 
-/* Lytx Rhombus — 55-degree angle brand shape */
-.brand-rhombus{
-  width:40px;height:40px;flex-shrink:0;
-  background:linear-gradient(135deg,var(--grad-light-start),var(--grad-light-end));
-  clip-path:polygon(50% 0%,100% 38%,50% 100%,0% 62%);
-  display:flex;align-items:center;justify-content:center
-}
-.brand-rhombus svg{
-  width:18px;height:18px;stroke:#fff;fill:none;stroke-width:2.5;
-  margin-top:3px
-}
+/* MAIN */
+.ldc-main{flex:1;padding:20px 24px}
 
-.header-title{font-size:17px;font-weight:700;color:#fff;letter-spacing:-0.2px}
-.header-sub{
-  font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px;
-  text-transform:uppercase;letter-spacing:1px;font-weight:600
-}
-.controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.date-wrap{display:flex;align-items:center;gap:8px}
-.date-label{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.7px;font-weight:700}
-.date-input{
-  background:rgba(255,255,255,0.07);border:1px solid var(--border-strong);
-  color:#fff;padding:7px 12px;border-radius:3px;font-family:var(--font);
-  font-size:13px;outline:none;cursor:pointer;transition:border-color .15s
-}
-.date-input:focus{border-color:var(--lytx-light-blue)}
-.run-btn{
-  padding:8px 20px;border-radius:3px;font-family:var(--font);font-size:12px;font-weight:700;
-  cursor:pointer;border:none;background:var(--lytx-light-blue);color:#fff;
-  display:flex;align-items:center;gap:7px;transition:all .15s;
-  text-transform:uppercase;letter-spacing:.6px
-}
-.run-btn:hover{background:var(--grad-light-start);transform:translateY(-1px);box-shadow:0 4px 18px rgba(0,156,222,.4)}
-.run-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+/* SUMMARY CARDS */
+.ldc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.ldc-card{background:#28343C;border:1px solid rgba(152,164,174,0.2);border-radius:4px;padding:16px;display:flex;align-items:center;gap:14px;border-top:3px solid #28343C}
+.ldc-card-green{border-top-color:#84BD00}
+.ldc-card-red{border-top-color:#CF4520}
+.ldc-card-teal{border-top-color:#00859B}
+.ldc-card-icon{width:40px;height:40px;border-radius:4px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.ldc-card-icon-green{background:rgba(132,189,0,0.15)}
+.ldc-card-icon-red{background:rgba(207,69,32,0.12)}
+.ldc-card-icon-teal{background:rgba(0,133,155,0.15)}
+.ldc-card-icon svg{width:20px;height:20px;fill:none;stroke-width:2.5;display:block}
+.ldc-count{font-size:32px;font-weight:700;line-height:1;letter-spacing:-1px;color:#FFFFFF}
+.ldc-count-green{color:#84BD00}
+.ldc-count-red{color:#CF4520}
+.ldc-count-teal{color:#00859B}
+.ldc-clabel{font-size:10px;color:#98A4AE;margin-top:4px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.ldc-cpct{font-size:11px;color:#98A4AE;margin-top:2px}
 
-/* ══ MAIN ══ */
-.main{flex:1;padding:24px 28px}
+/* TABLE SECTION */
+.ldc-table-section{background:#28343C;border:1px solid rgba(152,164,174,0.2);border-radius:4px;overflow:hidden}
+.ldc-table-header{padding:14px 18px;border-bottom:1px solid rgba(152,164,174,0.15);display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.ldc-table-title{font-size:14px;font-weight:700;color:#FFFFFF}
+.ldc-table-meta{font-size:10px;color:#98A4AE;margin-top:2px;text-transform:uppercase;letter-spacing:0.4px}
+.ldc-filters{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.ldc-filter-btn{padding:4px 10px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid rgba(152,164,174,0.35);background:transparent;color:#98A4AE;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.5px}
+.ldc-filter-btn.active{border-color:#009CDE;color:#009CDE;background:rgba(0,156,222,0.1)}
+.ldc-export-btn{padding:4px 12px;border-radius:3px;border:1px solid rgba(152,164,174,0.35);background:transparent;color:#98A4AE;font-size:10px;cursor:pointer;font-family:Arial,sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:0.5px}
+.ldc-export-btn:hover{border-color:#009CDE;color:#009CDE}
 
-/* ══ SUMMARY CARDS ══ */
-.summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:24px}
-.card{
-  background:var(--surface);border:1px solid var(--border);border-radius:4px;
-  padding:20px;display:flex;align-items:center;gap:16px;
-  position:relative;overflow:hidden;transition:transform .15s,box-shadow .15s
-}
-.card::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
-.card.c-green::before{background:var(--lytx-green)}
-.card.c-red::before  {background:var(--lytx-red)}
-.card.c-teal::before {background:var(--lytx-teal)}
-.card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.35)}
+/* TABLE */
+.ldc-table{width:100%;border-collapse:collapse;font-size:13px}
+.ldc-table th{padding:9px 14px;text-align:left;font-size:10px;font-weight:700;color:#98A4AE;text-transform:uppercase;letter-spacing:0.7px;border-bottom:1px solid rgba(152,164,174,0.15);background:rgba(255,255,255,0.025);white-space:nowrap;font-family:Arial,sans-serif}
+.ldc-table td{padding:10px 14px;border-bottom:1px solid rgba(152,164,174,0.08);color:#FFFFFF;font-family:Arial,sans-serif;white-space:nowrap}
+.ldc-table tr:last-child td{border-bottom:none}
+.ldc-table tbody tr:hover td{background:rgba(255,255,255,0.025)}
 
-.card-icon{
-  width:46px;height:46px;border-radius:4px;
-  display:flex;align-items:center;justify-content:center;flex-shrink:0
-}
-.card-icon.green{background:rgba(132,189,0,.12)}
-.card-icon.red  {background:rgba(207,69,32,.1)}
-.card-icon.teal {background:rgba(0,133,155,.12)}
-.card-icon svg{width:22px;height:22px;fill:none;stroke-width:2.5}
+/* BADGES */
+.ldc-badge{display:inline-block;padding:3px 9px;border-radius:2px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px}
+.ldc-badge-green{background:rgba(132,189,0,0.12);color:#84BD00;border:1px solid rgba(132,189,0,0.25)}
+.ldc-badge-red{background:rgba(207,69,32,0.1);color:#CF4520;border:1px solid rgba(207,69,32,0.25)}
+.ldc-badge-grey{background:rgba(152,164,174,0.08);color:#98A4AE;border:1px solid rgba(152,164,174,0.2)}
 
-.card-count{font-size:36px;font-weight:700;line-height:1;letter-spacing:-1.5px}
-.card-count.green{color:var(--lytx-green)}
-.card-count.red  {color:var(--lytx-red)}
-.card-count.teal {color:var(--lytx-teal)}
-.card-label{
-  font-size:10px;color:var(--text-muted);margin-top:4px;
-  font-weight:700;text-transform:uppercase;letter-spacing:.6px
-}
-.card-pct{font-size:12px;color:var(--text-muted);margin-top:3px}
+/* STATES */
+.ldc-state-box{display:flex;align-items:center;justify-content:center;padding:50px 20px;color:#98A4AE;font-family:Arial,sans-serif;font-size:14px}
 
-/* ══ TABLE SECTION ══ */
-.table-section{
-  background:var(--surface);border:1px solid var(--border);
-  border-radius:4px;overflow:hidden
-}
-.table-header{
-  padding:16px 20px;border-bottom:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap
-}
-.table-title{font-size:14px;font-weight:700;color:#fff}
-.table-meta{
-  font-size:10px;color:var(--text-muted);margin-top:3px;
-  text-transform:uppercase;letter-spacing:.5px
-}
-.filter-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+/* PAGINATION */
+.ldc-pagination{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;border-top:1px solid rgba(152,164,174,0.15)}
+.ldc-page-info{font-size:10px;color:#98A4AE;text-transform:uppercase;letter-spacing:0.4px;font-family:Arial,sans-serif}
+.ldc-page-btn{padding:4px 10px;border-radius:3px;border:1px solid rgba(152,164,174,0.35);background:transparent;color:#98A4AE;font-size:12px;cursor:pointer;font-family:Arial,sans-serif;font-weight:600}
+.ldc-page-btn:hover:not(:disabled){border-color:#009CDE;color:#009CDE}
+.ldc-page-btn:disabled{opacity:0.3;cursor:not-allowed}
 
-.filter-btn{
-  padding:5px 13px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;
-  border:1px solid var(--border-strong);background:transparent;color:var(--text-muted);
-  font-family:var(--font);transition:all .15s;text-transform:uppercase;letter-spacing:.6px
-}
-.filter-btn.active{
-  border-color:var(--lytx-light-blue);color:var(--lytx-light-blue);
-  background:rgba(0,156,222,.1)
-}
-.filter-btn:hover:not(.active){color:#fff;border-color:rgba(255,255,255,.3)}
+/* FOOTER */
+.ldc-footer{padding:10px 24px;border-top:1px solid rgba(152,164,174,0.15);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.ldc-footer-brand{display:flex;align-items:center;gap:8px}
+.ldc-footer-rhombus{width:16px;height:16px;background:#009CDE;clip-path:polygon(50% 0%,100% 38%,50% 100%,0% 62%);flex-shrink:0}
+.ldc-footer-name{font-size:10px;font-weight:700;color:#98A4AE;text-transform:uppercase;letter-spacing:1px;font-family:Arial,sans-serif}
+.ldc-footer-legal{font-size:9px;color:rgba(152,164,174,0.45);max-width:600px;line-height:1.5;font-family:Arial,sans-serif}
 
-.export-btn{
-  padding:5px 14px;border-radius:3px;border:1px solid var(--border-strong);
-  background:transparent;color:var(--text-muted);font-size:10px;cursor:pointer;
-  font-family:var(--font);font-weight:700;transition:all .15s;
-  text-transform:uppercase;letter-spacing:.6px;white-space:nowrap
-}
-.export-btn:hover{border-color:var(--lytx-light-blue);color:var(--lytx-light-blue)}
-
-/* ══ TABLE ══ */
-.table-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse}
-th{
-  padding:10px 16px;text-align:left;font-size:10px;font-weight:700;
-  color:var(--text-muted);text-transform:uppercase;letter-spacing:.8px;
-  border-bottom:1px solid var(--border);
-  background:rgba(255,255,255,.025);white-space:nowrap
-}
-td{
-  padding:11px 16px;
-  border-bottom:1px solid rgba(152,164,174,.1);
-  font-size:13px;white-space:nowrap
-}
-tr:last-child td{border-bottom:none}
-tr:hover td{background:rgba(255,255,255,.025)}
-
-/* ══ STATUS BADGES ══ */
-.badge{
-  display:inline-flex;align-items:center;gap:5px;
-  padding:3px 10px;border-radius:2px;font-size:10px;font-weight:700;
-  text-transform:uppercase;letter-spacing:.5px
-}
-.badge.compliant{
-  background:rgba(132,189,0,.12);color:var(--lytx-green);
-  border:1px solid rgba(132,189,0,.25)
-}
-.badge.not-compliant{
-  background:rgba(207,69,32,.1);color:var(--lytx-red);
-  border:1px solid rgba(207,69,32,.22)
-}
-.badge.no-inspection{
-  background:rgba(152,164,174,.08);color:var(--text-muted);
-  border:1px solid rgba(152,164,174,.2)
-}
-.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
-.dot.green{background:var(--lytx-green)}
-.dot.red  {background:var(--lytx-red)}
-.dot.grey {background:var(--text-muted)}
-
-/* ══ STATE SCREENS ══ */
-.state-box{
-  display:flex;flex-direction:column;align-items:center;
-  justify-content:center;padding:64px 20px;color:var(--text-muted);gap:14px
-}
-.state-box svg{width:44px;height:44px;opacity:.3;fill:none;stroke:currentColor;stroke-width:1.5}
-.state-box p{font-size:14px}
-.spinner{
-  width:32px;height:32px;
-  border:3px solid rgba(152,164,174,.15);
-  border-top-color:var(--lytx-light-blue);
-  border-radius:50%;animation:spin .75s linear infinite
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-.err-msg{color:var(--lytx-red);font-size:13px;max-width:400px;text-align:center;line-height:1.6}
-
-/* ══ PAGINATION ══ */
-.pagination{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:12px 20px;border-top:1px solid var(--border)
-}
-.page-info{font-size:10px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px}
-.page-btn{
-  padding:5px 11px;border-radius:3px;border:1px solid var(--border-strong);
-  background:transparent;color:var(--text-muted);font-size:12px;cursor:pointer;
-  font-family:var(--font);font-weight:600;transition:all .15s
-}
-.page-btn:hover:not(:disabled){border-color:var(--lytx-light-blue);color:var(--lytx-light-blue)}
-.page-btn:disabled{opacity:.3;cursor:not-allowed}
-
-/* ══ FOOTER ══ */
-.footer{
-  padding:10px 28px;
-  border-top:1px solid var(--border);
-  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px
-}
-.footer-brand{display:flex;align-items:center;gap:8px}
-.footer-rhombus{
-  width:20px;height:20px;
-  background:linear-gradient(135deg,var(--grad-light-start),var(--grad-light-end));
-  clip-path:polygon(50% 0%,100% 38%,50% 100%,0% 62%)
-}
-.footer-name{
-  font-size:10px;font-weight:700;color:var(--text-muted);
-  text-transform:uppercase;letter-spacing:1px
-}
-.footer-legal{font-size:10px;color:rgba(152,164,174,.45);max-width:640px;line-height:1.5}
-
-@media(max-width:700px){
-  .summary-grid{grid-template-columns:1fr}
-  .header,.main,.footer{padding:14px 16px}
-}
+@media(max-width:700px){.ldc-cards{grid-template-columns:1fr}.ldc-header,.ldc-main,.ldc-footer{padding:12px 14px}}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="ldc-wrap">
 
   <!-- HEADER -->
-  <div class="header">
-    <div class="header-brand">
-      <div aria-label="Lytx+ with Geotab" style="height:36px;width:108px;flex-shrink:0;background-image:url('data:image/jpeg;base64,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');background-size:contain;background-repeat:no-repeat;background-position:left center"></div>
+  <div class="ldc-header">
+    <div class="ldc-brand">
+      <div style="height:36px;width:108px;flex-shrink:0;background-image:url('data:image/jpeg;base64,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');background-size:contain;background-repeat:no-repeat;background-position:left center"></div>
       <div>
-        <div class="header-title">Lytx+ DVIR Compliance Report</div>
-        <div class="header-sub">Daily inspection tracking &nbsp;&bull;&nbsp; Lytx+ with Geotab</div>
+        <div class="ldc-title">DVIR Compliance Report</div>
+        <div class="ldc-sub">Daily inspection tracking</div>
       </div>
     </div>
-    <div class="controls">
-      <div class="date-wrap">
-        <span class="date-label">Date</span>
-        <input type="date" class="date-input" id="reportDate" >
-      </div>
-      <button class="run-btn" id="runBtn" onclick="DVIRApp.run()">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <circle cx="11" cy="11" r="8"/>
-          <path d="M21 21l-4.35-4.35"/>
-        </svg>
-        Run Report
-      </button>
+    <div class="ldc-controls">
+      <span class="ldc-date-label">Date</span>
+      <input type="date" class="ldc-date-input" id="reportDate">
+      <button class="ldc-run-btn" id="runBtn" onclick="DVIRApp.run()">Run Report</button>
     </div>
   </div>
 
   <!-- MAIN -->
-  <div class="main">
+  <div class="ldc-main">
 
     <!-- SUMMARY CARDS -->
-    <div class="summary-grid">
-      <div class="card c-green">
-        <div class="card-icon green">
+    <div class="ldc-cards">
+      <div class="ldc-card ldc-card-green">
+        <div class="ldc-card-icon ldc-card-icon-green">
           <svg viewBox="0 0 24 24" stroke="#84BD00">
             <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
             <path d="M22 4L12 14.01l-3-3"/>
           </svg>
         </div>
         <div>
-          <div class="card-count green" id="cCompliant">—</div>
-          <div class="card-label">Compliant</div>
-          <div class="card-pct" id="pCompliant"></div>
+          <div class="ldc-count ldc-count-green" id="cCompliant">-</div>
+          <div class="ldc-clabel">Compliant</div>
+          <div class="ldc-cpct" id="pCompliant"></div>
         </div>
       </div>
-      <div class="card c-red">
-        <div class="card-icon red">
+      <div class="ldc-card ldc-card-red">
+        <div class="ldc-card-icon ldc-card-icon-red">
           <svg viewBox="0 0 24 24" stroke="#CF4520">
             <circle cx="12" cy="12" r="10"/>
             <line x1="12" y1="8" x2="12" y2="12"/>
@@ -303,66 +135,49 @@ tr:hover td{background:rgba(255,255,255,.025)}
           </svg>
         </div>
         <div>
-          <div class="card-count red" id="cNot">—</div>
-          <div class="card-label">Not Compliant</div>
-          <div class="card-pct" id="pNot"></div>
+          <div class="ldc-count ldc-count-red" id="cNot">-</div>
+          <div class="ldc-clabel">Not Compliant</div>
+          <div class="ldc-cpct" id="pNot"></div>
         </div>
       </div>
-      <div class="card c-teal">
-        <div class="card-icon teal">
+      <div class="ldc-card ldc-card-teal">
+        <div class="ldc-card-icon ldc-card-icon-teal">
           <svg viewBox="0 0 24 24" stroke="#00859B">
             <circle cx="12" cy="12" r="10"/>
             <line x1="8" y1="12" x2="16" y2="12"/>
           </svg>
         </div>
         <div>
-          <div class="card-count teal" id="cNone">—</div>
-          <div class="card-label">No Inspection Needed</div>
-          <div class="card-pct" id="pNone"></div>
+          <div class="ldc-count ldc-count-teal" id="cNone">-</div>
+          <div class="ldc-clabel">No Inspection Needed</div>
+          <div class="ldc-cpct" id="pNone"></div>
         </div>
       </div>
     </div>
 
-    <!-- TABLE SECTION -->
-    <div class="table-section">
-      <div class="table-header">
+    <!-- TABLE -->
+    <div class="ldc-table-section">
+      <div class="ldc-table-header">
         <div>
-          <div class="table-title">Vehicle Detail</div>
-          <div class="table-meta" id="tableMeta">Run a report to see results</div>
+          <div class="ldc-table-title">Vehicle Detail</div>
+          <div class="ldc-table-meta" id="tableMeta">Run a report to see results</div>
         </div>
-        <div class="filter-row">
-          <button class="filter-btn active" id="fa" onclick="DVIRApp.filter('all')">All</button>
-          <button class="filter-btn" id="fc" onclick="DVIRApp.filter('compliant')">Compliant</button>
-          <button class="filter-btn" id="fn" onclick="DVIRApp.filter('notcompliant')">Not Compliant</button>
-          <button class="filter-btn" id="fni" onclick="DVIRApp.filter('noinspection')">No Inspection Needed</button>
-          <button class="export-btn" onclick="DVIRApp.exportCSV()">&#8659; Export CSV</button>
+        <div class="ldc-filters">
+          <button class="ldc-filter-btn active" id="fa" onclick="DVIRApp.filter('all')">All</button>
+          <button class="ldc-filter-btn" id="fc" onclick="DVIRApp.filter('compliant')">Compliant</button>
+          <button class="ldc-filter-btn" id="fn" onclick="DVIRApp.filter('notcompliant')">Not Compliant</button>
+          <button class="ldc-filter-btn" id="fni" onclick="DVIRApp.filter('noinspection')">No Inspection Needed</button>
+          <button class="ldc-export-btn" onclick="DVIRApp.exportCSV()">Export CSV</button>
         </div>
       </div>
-
       <div id="tableContainer">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Vehicle</th>
-                <th>Group</th>
-                <th>Compliance</th>
-                <th>Inspected</th>
-                <th>Inspections</th>
-                <th>Vehicle Moved</th>
-                <th>Distance</th>
-              </tr>
-            </thead>
-            <tbody id="tbody"></tbody>
-          </table>
-        </div>
+        <div class="ldc-state-box"><p>Select a date and run the report</p></div>
       </div>
-
-      <div class="pagination" id="pagination">
-        <span class="page-info" id="pageInfo">Page 1 of 1 &mdash; 1&ndash;19 of 19</span>
+      <div class="ldc-pagination" id="pagination" style="display:none">
+        <span class="ldc-page-info" id="pageInfo"></span>
         <div style="display:flex;gap:6px">
-          <button class="page-btn" disabled>&#8592; Prev</button>
-          <button class="page-btn" disabled>Next &#8594;</button>
+          <button class="ldc-page-btn" id="prevBtn" onclick="DVIRApp.prevPage()">&#8592; Prev</button>
+          <button class="ldc-page-btn" id="nextBtn" onclick="DVIRApp.nextPage()">Next &#8594;</button>
         </div>
       </div>
     </div>
@@ -370,15 +185,14 @@ tr:hover td{background:rgba(255,255,255,.025)}
   </div>
 
   <!-- FOOTER -->
-  <div class="footer">
-    <div class="footer-brand">
-      <div class="footer-rhombus"></div>
-      <span class="footer-name">Lytx</span>
+  <div class="ldc-footer">
+    <div class="ldc-footer-brand">
+      <div class="ldc-footer-rhombus"></div>
+      <span class="ldc-footer-name">Lytx</span>
     </div>
-    <div class="footer-legal">
-      Lytx, Inc. owns the LYTX and SURFSIGHT trademarks and other related trademarks and logos.
-      &ldquo;Lytx+&rdquo; and the Lytx+ logo are trademarks of Lytx, Inc.
-      &ldquo;Geotab&rdquo; and the Geotab logo are registered trademarks of Geotab, Inc. in the United States and other countries.
+    <div class="ldc-footer-legal">
+      Lytx, Inc. owns the LYTX and SURFSIGHT trademarks. "Lytx+" and the Lytx+ logo are trademarks of Lytx, Inc.
+      "Geotab" and the Geotab logo are registered trademarks of Geotab, Inc.
     </div>
   </div>
 
