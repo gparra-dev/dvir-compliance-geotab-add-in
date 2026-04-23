@@ -163,7 +163,7 @@ var DVIRApp = (function() {
       lines.push([dv,r.vehicleName,r.groupName||'',lb,r.inspCnt>0?'Inspected':'Not Inspected',r.inspCnt,r.moved?'Vehicle Moved':'Vehicle Did Not Move',r.distDisplay]
         .map(function(v){return'"'+String(v).replace(/"/g,'""')+'"';}).join(','));
     });
-    var blob=new Blob([lines.join('\n')],{type:'text/csv'});
+    var blob=new Blob([lines.join(String.fromCharCode(10))],{type:'text/csv'});
     var url=URL.createObjectURL(blob);
     var a=document.createElement('a');a.href=url;a.download='lytx-plus-dvir-compliance-'+dv+'.csv';
     document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
