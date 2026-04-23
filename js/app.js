@@ -70,15 +70,27 @@ var DVIRApp = (function() {
     var devices = (results && results[2]) || [];
     var groups  = (results && results[3]) || [];
 
-    // Build group lookup: id -> name
+    // Build group lookup: id -> { name, parent }
     var gm = {};
     groups.forEach(function(g) {
-      gm[g.id] = g.name || g.id;
+      gm[g.id] = { name: g.name || g.id, parent: g.parent && g.parent.id };
     });
 
-    // Geotab built-in group IDs to exclude when picking the display group
-    var BUILTIN_GROUPS = {
-      'GroupCompanyId': true,
+    // Calculate depth of a group by walking up the parent chain
+    function _groupDepth(gid) {
+      var depth = 0;
+      var visited = {};
+      var current = gid;
+      while (current && gm[current] && gm[current].parent && !visited[current]) {
+        visited[current] = true;
+        current = gm[current].parent;
+        depth++;
+      }
+      return depth;
+    }
+
+    // System root group IDs — any group whose ancestry includes these is a built-in group
+    var SYSTEM_ROOTS = {
       'GroupAssetInformationId': true,
       'GroupDriverActivityId': true,
       'GroupNothingId': true,
@@ -91,22 +103,38 @@ var DVIRApp = (function() {
       'GroupEverythingSecurityId': true
     };
 
-    // Build device map: id -> { name, groupName }
+    // Returns true if gid is a built-in group or descends from one
+    function _isBuiltin(gid) {
+      var visited = {};
+      var current = gid;
+      while (current) {
+        if (visited[current]) break;
+        visited[current] = true;
+        if (SYSTEM_ROOTS[current]) return true;
+        current = gm[current] && gm[current].parent;
+      }
+      return false;
+    }
+
+    // Build device map — pick the deepest non-built-in group
     var dm = {};
     devices.forEach(function(d) {
       var gn = '';
       if (d.groups && d.groups.length > 0) {
-        // Skip built-in groups and pick the first real fleet group
-        for (var i = 0; i < d.groups.length; i++) {
-          var gid = d.groups[i].id;
-          if (!BUILTIN_GROUPS[gid]) {
-            gn = gm[gid] || gid || '';
-            break;
-          }
-        }
-        // Fall back to first group if all were built-in
-        if (!gn) {
-          gn = gm[d.groups[0].id] || d.groups[0].id || '';
+        var bestId = null;
+        var bestDepth = -1;
+        d.groups.forEach(function(dg) {
+          var gid = dg.id;
+          if (_isBuiltin(gid)) return;  // skip built-in and all their children
+          var depth = _groupDepth(gid);
+          if (depth > bestDepth) { bestDepth = depth; bestId = gid; }
+        });
+        if (bestId) {
+          gn = (gm[bestId] && gm[bestId].name) || bestId;
+        } else {
+          // All groups were built-in — fall back to first group name
+          var fid = d.groups[0].id;
+          gn = (gm[fid] && gm[fid].name) || fid;
         }
       }
       dm[d.id] = { name: d.name || d.id, groupName: gn };
