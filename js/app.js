@@ -270,6 +270,16 @@ var DVIRApp = (function() {
       // Skip archived/deactivated devices — activeTo in the past means deactivated
       if (d.activeTo && new Date(d.activeTo) < new Date()) return;
 
+      // DEBUG: log suspicious devices (raw ID-looking names or no group)
+      if (d.name === d.id || d.name === 'b14F' || d.name === 'b32' || /^b[0-9A-F]+$/i.test(d.name)) {
+        console.log('DEBUG suspicious device:', JSON.stringify({
+          id: d.id, name: d.name,
+          groups: d.groups,
+          activeTo: d.activeTo,
+          deviceType: d.deviceType
+        }));
+      }
+
       // Only include vehicles — skip trailers and assets with no vehicle tag
       var isVehicle = false;
       if (d.groups) {
