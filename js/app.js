@@ -31,8 +31,15 @@ var DVIRApp = (function() {
     var dd = String(t.getUTCDate()).padStart(2, '0');
     document.getElementById('reportDate').value = yyyy + '-' + mm + '-' + dd;
     _api.call('Get', { typeName: 'User', search: {} },
-      function(u) { if (u && u[0]) { _isMetric = u[0].isMetric !== false; } },
-      function() {}
+      function(u) {
+        if (u && u[0]) { _isMetric = u[0].isMetric !== false; }
+        // Auto-run for today's date on load
+        run();
+      },
+      function() {
+        // Run even if user preference fetch fails
+        run();
+      }
     );
   }
 
