@@ -55,6 +55,12 @@ var DVIRApp = (function() {
   }
 
   function _buildGroupTree(groups, user) {
+    // DEBUG: log first 5 groups raw to see parent structure
+    console.log('DEBUG: total groups returned:', groups.length);
+    groups.slice(0, 5).forEach(function(g) {
+      console.log('DEBUG group:', JSON.stringify(g));
+    });
+
     // Build id -> group map with children array
     _groupMap = {};
     groups.forEach(function(g) {
@@ -66,14 +72,17 @@ var DVIRApp = (function() {
       };
     });
 
-    // Link children to parents
+    // Link children to parents and set parent back-references from our own tree
     var roots = [];
     groups.forEach(function(g) {
       var pid = g.parent && g.parent.id;
       if (pid && _groupMap[pid]) {
         _groupMap[pid].children.push(g.id);
+        // Set parent from our tree so navigation works even if API doesn't return it
+        _groupMap[g.id].parent = pid;
       } else if (!_isBuiltinGroup(g.id)) {
         roots.push(g.id);
+        _groupMap[g.id].parent = null;
       }
     });
 
