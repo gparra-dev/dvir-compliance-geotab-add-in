@@ -127,6 +127,8 @@ var DVIRApp = (function() {
   function _renderGroupPanel() {
     var panel = document.getElementById('groupPanel');
     if (!panel) return;
+    // Stop all clicks inside the panel from bubbling to document
+    panel.onclick = function(e) { e.stopPropagation(); };
     // Use _navGroupId for what's shown in the panel (browsing state)
     // Use _selectedGroupId for the checkmark (what's actually selected)
     var currentId = _navGroupId || _selectedGroupId;
@@ -532,7 +534,7 @@ var DVIRApp = (function() {
     // Update button label to show selected group
     var g = _groupMap[gid];
     var lbl = document.getElementById('groupFilterLabel');
-    if (lbl) { lbl.textContent = _esc(g ? g.name : 'All Groups'); }
+    if (lbl) { lbl.textContent = g ? g.name : 'All Groups'; }
     // Re-render panel so checkmark updates but panel stays open
     _renderGroupPanel();
   }
@@ -541,13 +543,27 @@ var DVIRApp = (function() {
     var panel = document.getElementById('groupPanel');
     if (!panel) return;
     if (panel.style.display === 'none' || panel.style.display === '') {
-      // Start panel navigation at the selected group
       _navGroupId = _selectedGroupId;
       _renderGroupPanel();
       panel.style.display = 'block';
+      // Close when clicking outside — use capture phase, one shot
+      setTimeout(function() {
+        document.addEventListener('click', _outsideClickHandler);
+      }, 0);
     } else {
       panel.style.display = 'none';
+      document.removeEventListener('click', _outsideClickHandler);
     }
+  }
+
+  function _outsideClickHandler(e) {
+    var panel = document.getElementById('groupPanel');
+    var btn   = document.getElementById('groupFilterBtn');
+    if (!panel) return;
+    // If click is inside the panel or the toggle button, do nothing
+    if ((panel && panel.contains(e.target)) || (btn && btn.contains(e.target))) return;
+    panel.style.display = 'none';
+    document.removeEventListener('click', _outsideClickHandler);
   }
 
   return { init: init, run: run, filter: filter, prevPage: prevPage, nextPage: nextPage, exportCSV: exportCSV, groupNav: groupNav, groupSelect: groupSelect, toggleGroupPanel: toggleGroupPanel };
