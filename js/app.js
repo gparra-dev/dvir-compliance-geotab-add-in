@@ -22,7 +22,8 @@ var DVIRApp = (function() {
   var _pageSize = 50;
   var _isMetric = true;
   var _groupMap = {};        // id -> { name, parent, children[] }
-  var _selectedGroupId = null; // currently selected group filter
+  var _selectedGroupId = null; // currently selected group filter (used for filtering)
+  var _navGroupId = null;      // currently viewed group in the panel (navigation state)
 
   // Geotab built-in group IDs always match /^Group[A-Z]/
   // Real customer fleet group IDs are short alphanumeric strings like 'b2842'
@@ -109,23 +110,26 @@ var DVIRApp = (function() {
     }
 
     _selectedGroupId = topGroup;
+    _navGroupId = topGroup;
 
     // Populate the group dropdown
     _populateGroupDropdown(topGroup);
   }
 
   function _populateGroupDropdown(selectedId) {
-    var btn = document.getElementById('groupFilterBtn');
-    if (!btn) return;
+    var lbl = document.getElementById('groupFilterLabel');
+    if (!lbl) return;
     var g = _groupMap[selectedId];
-    btn.textContent = g ? g.name : 'All Groups';
+    lbl.textContent = g ? g.name : 'All Groups';
     _selectedGroupId = selectedId;
   }
 
   function _renderGroupPanel() {
     var panel = document.getElementById('groupPanel');
     if (!panel) return;
-    var currentId = _selectedGroupId;
+    // Use _navGroupId for what's shown in the panel (browsing state)
+    // Use _selectedGroupId for the checkmark (what's actually selected)
+    var currentId = _navGroupId || _selectedGroupId;
     var current = _groupMap[currentId];
     var parentId = current && current.parent && !_isBuiltinGroup(current.parent) ? current.parent : null;
     var children = [];
@@ -139,14 +143,17 @@ var DVIRApp = (function() {
       html += '<button class="gp-back" onclick="DVIRApp.groupNav(\'' + parentId + '\')">&#8592; Back</button>';
     }
     html += '<span class="gp-header-name">' + _esc((current && current.name) || 'Groups') + '</span></div>';
-    html += '<div class="gp-item gp-select" onclick="DVIRApp.groupSelect(\'' + currentId + '\')">'
-          + '&#10003; All of <strong>' + _esc((current && current.name) || '') + '</strong></div>';
+    // Show select option — with checkmark if this is the currently selected group
+    var isSelected = (currentId === _selectedGroupId);
+    html += '<div class="gp-item gp-select' + (isSelected ? ' gp-selected' : '') + '" onclick="DVIRApp.groupSelect(\'' + currentId + '\')">'
+          + (isSelected ? '&#10003; ' : '') + 'All of <strong>' + _esc((current && current.name) || '') + '</strong></div>';
     if (children.length > 0) {
       children.forEach(function(cid) {
         var cg = _groupMap[cid];
         var hasKids = cg.children && cg.children.filter(function(k) { return !_isBuiltinGroup(k); }).length > 0;
-        html += '<div class="gp-item" onclick="DVIRApp.groupNav(\'' + cid + '\')">'
-              + '<span>' + _esc(cg.name) + '</span>'
+        var childSelected = (cid === _selectedGroupId);
+        html += '<div class="gp-item' + (childSelected ? ' gp-selected' : '') + '" onclick="DVIRApp.groupNav(\'' + cid + '\')">'
+              + '<span>' + (childSelected ? '&#10003; ' : '') + _esc(cg.name) + '</span>'
               + (hasKids ? '<span class="gp-arrow">&#8250;</span>' : '')
               + '</div>';
       });
@@ -258,6 +265,15 @@ var DVIRApp = (function() {
           if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id);
         });
       }
+      // Only include vehicles — skip trailers and assets with no vehicle tag
+      var isVehicle = false;
+      if (d.groups) {
+        d.groups.forEach(function(dg) {
+          if (dg.id === 'GroupVehicleId') isVehicle = true;
+        });
+      }
+      if (!isVehicle) return; // skip trailers, untagged assets, etc.
+
       dm[d.id] = { name: d.name || d.id, groupName: gn, rawGroupId: chosen || '', allGroupIds: allGroupIds };
     });
 
@@ -503,26 +519,30 @@ var DVIRApp = (function() {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  function groupNav(gid, hasKids) {
-    _selectedGroupId = gid;
+  function groupNav(gid) {
+    // Navigate into a group without selecting it — just browse the hierarchy
+    _navGroupId = gid;
     _renderGroupPanel();
   }
 
   function groupSelect(gid) {
+    // Select this group as the filter — stay open so user can keep browsing
     _selectedGroupId = gid;
+    _navGroupId = gid;
+    // Update button label to show selected group
     var g = _groupMap[gid];
-    var btn = document.getElementById('groupFilterBtn');
-    if (btn) btn.textContent = g ? g.name : 'All Groups';
-    // Close panel
-    var panel = document.getElementById('groupPanel');
-    if (panel) panel.style.display = 'none';
-    run();
+    var lbl = document.getElementById('groupFilterLabel');
+    if (lbl) { lbl.textContent = _esc(g ? g.name : 'All Groups'); }
+    // Re-render panel so checkmark updates but panel stays open
+    _renderGroupPanel();
   }
 
   function toggleGroupPanel() {
     var panel = document.getElementById('groupPanel');
     if (!panel) return;
     if (panel.style.display === 'none' || panel.style.display === '') {
+      // Start panel navigation at the selected group
+      _navGroupId = _selectedGroupId;
       _renderGroupPanel();
       panel.style.display = 'block';
     } else {
