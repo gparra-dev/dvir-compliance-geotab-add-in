@@ -267,12 +267,15 @@ var DVIRApp = (function() {
           if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id);
         });
       }
-      // Skip archived devices — log first device to check field name
-      if (d.id === Object.keys(dm)[0] || Object.keys(dm).length === 0) {
-        console.log('DEBUG device fields:', JSON.stringify(Object.keys(d)));
-        console.log('DEBUG device sample:', JSON.stringify(d));
+      // DEBUG: log archived vehicle
+      if (d.name === '96927') {
+        console.log('DEBUG archived vehicle 96927:', JSON.stringify(d));
       }
-      if (d.isArchived) return;
+      // Skip archived/deactivated devices — activeTo in the past means deactivated
+      if (d.activeTo) {
+        var activeTo = new Date(d.activeTo);
+        if (activeTo < new Date()) return;
+      }
 
       // Only include vehicles — skip trailers and assets with no vehicle tag
       var isVehicle = false;
