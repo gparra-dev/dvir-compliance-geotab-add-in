@@ -267,6 +267,9 @@ var DVIRApp = (function() {
           if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id);
         });
       }
+      // Skip archived devices
+      if (d.isArchived) return;
+
       // Only include vehicles — skip trailers and assets with no vehicle tag
       var isVehicle = false;
       if (d.groups) {
