@@ -21,6 +21,8 @@ var DVIRApp = (function() {
   var _page = 1;
   var _pageSize = 50;
   var _isMetric = true;
+  var _groupMap = {};        // id -> { name, parent, children[] }
+  var _selectedGroupId = null; // currently selected group filter
 
   function init(api, state) {
     _api = api;
@@ -30,22 +32,111 @@ var DVIRApp = (function() {
     var mm = String(t.getUTCMonth() + 1).padStart(2, '0');
     var dd = String(t.getUTCDate()).padStart(2, '0');
     document.getElementById('reportDate').value = yyyy + '-' + mm + '-' + dd;
-    _api.call('Get', { typeName: 'User', search: {} },
-      function(u) {
-        if (u && u[0]) { _isMetric = u[0].isMetric !== false; }
-        // Auto-run for today's date on load
-        run();
-      },
-      function() {
-        // Run even if user preference fetch fails
-        run();
+
+    // Fetch user prefs and groups in parallel
+    _api.multiCall([
+      ['Get', { typeName: 'User', search: {} }],
+      ['Get', { typeName: 'Group', search: {} }]
+    ], function(results) {
+      var users  = results[0] || [];
+      var groups = results[1] || [];
+      if (users[0]) { _isMetric = users[0].isMetric !== false; }
+      _buildGroupTree(groups, users[0]);
+      run();
+    }, function() {
+      run();
+    });
+  }
+
+  function _buildGroupTree(groups, user) {
+    // Build id -> group map with children array
+    _groupMap = {};
+    groups.forEach(function(g) {
+      _groupMap[g.id] = {
+        id: g.id,
+        name: g.name || g.id,
+        parent: g.parent && g.parent.id,
+        children: []
+      };
+    });
+
+    // Link children to parents
+    var roots = [];
+    groups.forEach(function(g) {
+      var pid = g.parent && g.parent.id;
+      if (pid && _groupMap[pid]) {
+        _groupMap[pid].children.push(g.id);
+      } else if (!_isBuiltinGroup(g.id)) {
+        roots.push(g.id);
       }
-    );
+    });
+
+    // Find top-level accessible groups (non-built-in roots)
+    // If user has a group filter set, use that; otherwise use first real root
+    var topGroup = null;
+    if (user && user.companyGroups && user.companyGroups.length > 0) {
+      for (var i = 0; i < user.companyGroups.length; i++) {
+        var gid = user.companyGroups[i].id;
+        if (!_isBuiltinGroup(gid)) { topGroup = gid; break; }
+      }
+    }
+    if (!topGroup && roots.length > 0) { topGroup = roots[0]; }
+    _selectedGroupId = topGroup;
+
+    // Populate the group dropdown
+    _populateGroupDropdown(topGroup);
+  }
+
+  function _populateGroupDropdown(selectedId) {
+    var sel = document.getElementById('groupFilter');
+    if (!sel) return;
+    sel.innerHTML = '';
+
+    // Build flat list from hierarchy, indented by depth
+    function _addOptions(gid, depth) {
+      if (!_groupMap[gid] || _isBuiltinGroup(gid)) return;
+      var opt = document.createElement('option');
+      opt.value = gid;
+      opt.textContent = (depth > 0 ? '    '.repeat(depth) : '') + _groupMap[gid].name;
+      if (gid === selectedId) opt.selected = true;
+      sel.appendChild(opt);
+      // Recurse into children, filtering built-ins
+      var children = _groupMap[gid].children || [];
+      children.forEach(function(cid) { _addOptions(cid, depth + 1); });
+    }
+
+    // Find top-level non-built-in groups
+    var tops = Object.keys(_groupMap).filter(function(gid) {
+      if (_isBuiltinGroup(gid)) return false;
+      var pid = _groupMap[gid].parent;
+      return !pid || _isBuiltinGroup(pid);
+    });
+
+    tops.forEach(function(gid) { _addOptions(gid, 0); });
+  }
+
+  // Returns all descendant IDs of a group (inclusive)
+  function _getGroupAndDescendants(gid) {
+    var result = {};
+    function _walk(id) {
+      result[id] = true;
+      var g = _groupMap[id];
+      if (g && g.children) {
+        g.children.forEach(function(cid) { _walk(cid); });
+      }
+    }
+    _walk(gid);
+    return result;
   }
 
   function run() {
     var dv = document.getElementById('reportDate').value;
     if (!dv) { _showError('Please select a date.'); return; }
+
+    // Capture selected group from dropdown
+    var sel = document.getElementById('groupFilter');
+    if (sel && sel.value) { _selectedGroupId = sel.value; }
+
     _setLoading();
 
     var from = dv + 'T00:00:00.000Z';
@@ -124,7 +215,7 @@ var DVIRApp = (function() {
           gn = '';
         }
       }
-      dm[d.id] = { name: d.name || d.id, groupName: gn };
+      dm[d.id] = { name: d.name || d.id, groupName: gn, rawGroupId: chosen || '' };
     });
 
     // Sum distance per device — Geotab Trip.distance is in meters
@@ -164,12 +255,22 @@ var DVIRApp = (function() {
         deviceId:    did,
         vehicleName: dev.name,
         groupName:   dev.groupName,
+        rawGroupId:  dev.rawGroupId,
         status:      status,
         inspCnt:     inspCnt,
         moved:       moved,
         distDisplay: _fmt(distM)
       });
     });
+
+    // Filter rows to selected group and its descendants
+    if (_selectedGroupId && Object.keys(_groupMap).length > 0) {
+      var allowedGroups = _getGroupAndDescendants(_selectedGroupId);
+      rows = rows.filter(function(r) {
+        if (!r.rawGroupId) return true; // no group info, include it
+        return allowedGroups[r.rawGroupId];
+      });
+    }
 
     // Sort: Not Compliant first, then Compliant, then No Inspection Needed
     var ord = { notcompliant: 0, compliant: 1, noinspection: 2 };
