@@ -24,6 +24,12 @@ var DVIRApp = (function() {
   var _groupMap = {};        // id -> { name, parent, children[] }
   var _selectedGroupId = null; // currently selected group filter
 
+  // Geotab built-in group IDs always match /^Group[A-Z]/
+  // Real customer fleet group IDs are short alphanumeric strings like 'b2842'
+  function _isBuiltinGroup(gid) {
+    return /^Group[A-Z]/.test(gid);
+  }
+
   function init(api, state) {
     _api = api;
     _state = state;
@@ -188,12 +194,7 @@ var DVIRApp = (function() {
       return depth;
     }
 
-    // Geotab built-in group IDs always match the pattern /^Group[A-Z].*Id$/
-    // e.g. GroupVehicleId, GroupAssetInformationId, GroupGasolinePetrolId
-    // Real customer fleet group IDs are always short alphanumeric strings like 'b2842'
-    function _isBuiltinGroup(gid) {
-      return /^Group[A-Z]/.test(gid);
-    }
+
 
     // Build device map — pick the first fleet group (non-built-in ID)
     var dm = {};
