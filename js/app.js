@@ -55,47 +55,59 @@ var DVIRApp = (function() {
   }
 
   function _buildGroupTree(groups, user) {
-    // DEBUG: log first 5 groups raw to see parent structure
-    console.log('DEBUG: total groups returned:', groups.length);
-    groups.slice(0, 5).forEach(function(g) {
-      console.log('DEBUG group:', JSON.stringify(g));
-    });
-
-    // Build id -> group map with children array
+    // Build id -> group map using API-provided children arrays
     _groupMap = {};
     groups.forEach(function(g) {
+      // API returns children as [{id: '...'}] array — extract just the IDs
+      var childIds = (g.children || []).map(function(c) { return c.id; });
       _groupMap[g.id] = {
         id: g.id,
         name: g.name || g.id,
-        parent: g.parent && g.parent.id,
-        children: []
+        parent: null,   // will be set below
+        children: childIds
       };
     });
 
-    // Link children to parents and set parent back-references from our own tree
-    var roots = [];
-    groups.forEach(function(g) {
-      var pid = g.parent && g.parent.id;
-      if (pid && _groupMap[pid]) {
-        _groupMap[pid].children.push(g.id);
-        // Set parent from our tree so navigation works even if API doesn't return it
-        _groupMap[g.id].parent = pid;
-      } else if (!_isBuiltinGroup(g.id)) {
-        roots.push(g.id);
-        _groupMap[g.id].parent = null;
-      }
+    // Set parent back-references by walking each group's children
+    Object.keys(_groupMap).forEach(function(gid) {
+      _groupMap[gid].children.forEach(function(cid) {
+        if (_groupMap[cid]) {
+          _groupMap[cid].parent = gid;
+        }
+      });
     });
 
-    // Find top-level accessible groups (non-built-in roots)
-    // If user has a group filter set, use that; otherwise use first real root
+    // Find the top of the real fleet hierarchy:
+    // GroupCompanyId's children minus built-in groups = top-level fleet groups
     var topGroup = null;
-    if (user && user.companyGroups && user.companyGroups.length > 0) {
-      for (var i = 0; i < user.companyGroups.length; i++) {
-        var gid = user.companyGroups[i].id;
-        if (!_isBuiltinGroup(gid)) { topGroup = gid; break; }
+
+    // First preference: non-builtin children of GroupCompanyId
+    if (_groupMap['GroupCompanyId']) {
+      var companyChildren = _groupMap['GroupCompanyId'].children || [];
+      for (var i = 0; i < companyChildren.length; i++) {
+        if (!_isBuiltinGroup(companyChildren[i])) {
+          topGroup = companyChildren[i];
+          break;
+        }
       }
     }
-    if (!topGroup && roots.length > 0) { topGroup = roots[0]; }
+
+    // Second preference: user's own companyGroups setting
+    if (!topGroup && user && user.companyGroups && user.companyGroups.length > 0) {
+      for (var j = 0; j < user.companyGroups.length; j++) {
+        var ugid = user.companyGroups[j].id;
+        if (!_isBuiltinGroup(ugid)) { topGroup = ugid; break; }
+      }
+    }
+
+    // Last resort: any non-builtin group with no parent
+    if (!topGroup) {
+      var roots = Object.keys(_groupMap).filter(function(gid) {
+        return !_isBuiltinGroup(gid) && !_groupMap[gid].parent;
+      });
+      if (roots.length > 0) topGroup = roots[0];
+    }
+
     _selectedGroupId = topGroup;
 
     // Populate the group dropdown
