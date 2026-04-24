@@ -267,7 +267,11 @@ var DVIRApp = (function() {
           if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id);
         });
       }
-      // Skip archived devices
+      // Skip archived devices — log first device to check field name
+      if (d.id === Object.keys(dm)[0] || Object.keys(dm).length === 0) {
+        console.log('DEBUG device fields:', JSON.stringify(Object.keys(d)));
+        console.log('DEBUG device sample:', JSON.stringify(d));
+      }
       if (d.isArchived) return;
 
       // Only include vehicles — skip trailers and assets with no vehicle tag
