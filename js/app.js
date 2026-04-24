@@ -94,34 +94,48 @@ var DVIRApp = (function() {
   }
 
   function _populateGroupDropdown(selectedId) {
-    var sel = document.getElementById('groupFilter');
-    if (!sel) return;
-    sel.innerHTML = '';
-
-    // Build flat list from hierarchy, indented by depth
-    function _addOptions(gid, depth) {
-      if (!_groupMap[gid] || _isBuiltinGroup(gid)) return;
-      var opt = document.createElement('option');
-      opt.value = gid;
-      opt.textContent = (depth > 0 ? '    '.repeat(depth) : '') + _groupMap[gid].name;
-      if (gid === selectedId) opt.selected = true;
-      sel.appendChild(opt);
-      // Recurse into children, filtering built-ins
-      var children = _groupMap[gid].children || [];
-      children.forEach(function(cid) { _addOptions(cid, depth + 1); });
-    }
-
-    // Find top-level non-built-in groups
-    var tops = Object.keys(_groupMap).filter(function(gid) {
-      if (_isBuiltinGroup(gid)) return false;
-      var pid = _groupMap[gid].parent;
-      return !pid || _isBuiltinGroup(pid);
-    });
-
-    tops.forEach(function(gid) { _addOptions(gid, 0); });
+    var btn = document.getElementById('groupFilterBtn');
+    if (!btn) return;
+    var g = _groupMap[selectedId];
+    btn.textContent = g ? g.name : 'All Groups';
+    _selectedGroupId = selectedId;
   }
 
-  // Returns all descendant IDs of a group (inclusive)
+  function _renderGroupPanel() {
+    var panel = document.getElementById('groupPanel');
+    if (!panel) return;
+    var currentId = _selectedGroupId;
+    var current = _groupMap[currentId];
+    var parentId = current && current.parent && !_isBuiltinGroup(current.parent) ? current.parent : null;
+    var children = [];
+    if (current && current.children) {
+      current.children.forEach(function(cid) {
+        if (!_isBuiltinGroup(cid) && _groupMap[cid]) children.push(cid);
+      });
+    }
+    var html = '<div class="gp-header">';
+    if (parentId) {
+      html += '<button class="gp-back" onclick="DVIRApp.groupNav(\'' + parentId + '\')">&#8592; Back</button>';
+    }
+    html += '<span class="gp-header-name">' + _esc((current && current.name) || 'Groups') + '</span></div>';
+    html += '<div class="gp-item gp-select" onclick="DVIRApp.groupSelect(\'' + currentId + '\')">'
+          + '&#10003; All of <strong>' + _esc((current && current.name) || '') + '</strong></div>';
+    if (children.length > 0) {
+      children.forEach(function(cid) {
+        var cg = _groupMap[cid];
+        var hasKids = cg.children && cg.children.filter(function(k) { return !_isBuiltinGroup(k); }).length > 0;
+        html += '<div class="gp-item" onclick="DVIRApp.groupNav(\'' + cid + '\')">'
+              + '<span>' + _esc(cg.name) + '</span>'
+              + (hasKids ? '<span class="gp-arrow">&#8250;</span>' : '')
+              + '</div>';
+      });
+    } else {
+      html += '<div class="gp-empty">No sub-groups</div>';
+    }
+    panel.innerHTML = html;
+  }
+
+
   function _getGroupAndDescendants(gid) {
     var result = {};
     function _walk(id) {
@@ -216,7 +230,14 @@ var DVIRApp = (function() {
           gn = '';
         }
       }
-      dm[d.id] = { name: d.name || d.id, groupName: gn, rawGroupId: chosen || '' };
+      // Store all non-builtin group IDs for filtering
+      var allGroupIds = [];
+      if (d.groups) {
+        d.groups.forEach(function(dg) {
+          if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id);
+        });
+      }
+      dm[d.id] = { name: d.name || d.id, groupName: gn, rawGroupId: chosen || '', allGroupIds: allGroupIds };
     });
 
     // Sum distance per device — Geotab Trip.distance is in meters
@@ -257,6 +278,7 @@ var DVIRApp = (function() {
         vehicleName: dev.name,
         groupName:   dev.groupName,
         rawGroupId:  dev.rawGroupId,
+        allGroupIds: dev.allGroupIds || [],
         status:      status,
         inspCnt:     inspCnt,
         moved:       moved,
@@ -268,8 +290,11 @@ var DVIRApp = (function() {
     if (_selectedGroupId && Object.keys(_groupMap).length > 0) {
       var allowedGroups = _getGroupAndDescendants(_selectedGroupId);
       rows = rows.filter(function(r) {
-        if (!r.rawGroupId) return true; // no group info, include it
-        return allowedGroups[r.rawGroupId];
+        if (!r.allGroupIds || r.allGroupIds.length === 0) return true;
+        for (var i = 0; i < r.allGroupIds.length; i++) {
+          if (allowedGroups[r.allGroupIds[i]]) return true;
+        }
+        return false;
       });
     }
 
@@ -457,5 +482,32 @@ var DVIRApp = (function() {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  return { init: init, run: run, filter: filter, prevPage: prevPage, nextPage: nextPage, exportCSV: exportCSV };
+  function groupNav(gid, hasKids) {
+    _selectedGroupId = gid;
+    _renderGroupPanel();
+  }
+
+  function groupSelect(gid) {
+    _selectedGroupId = gid;
+    var g = _groupMap[gid];
+    var btn = document.getElementById('groupFilterBtn');
+    if (btn) btn.textContent = g ? g.name : 'All Groups';
+    // Close panel
+    var panel = document.getElementById('groupPanel');
+    if (panel) panel.style.display = 'none';
+    run();
+  }
+
+  function toggleGroupPanel() {
+    var panel = document.getElementById('groupPanel');
+    if (!panel) return;
+    if (panel.style.display === 'none' || panel.style.display === '') {
+      _renderGroupPanel();
+      panel.style.display = 'block';
+    } else {
+      panel.style.display = 'none';
+    }
+  }
+
+  return { init: init, run: run, filter: filter, prevPage: prevPage, nextPage: nextPage, exportCSV: exportCSV, groupNav: groupNav, groupSelect: groupSelect, toggleGroupPanel: toggleGroupPanel };
 }());
