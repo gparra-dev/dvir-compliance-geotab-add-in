@@ -522,8 +522,12 @@ var DVIRApp = (function() {
   }
 
   function groupNav(gid) {
-    // Navigate into a group without selecting it — just browse the hierarchy
+    // Navigate into group and auto-select it
     _navGroupId = gid;
+    _selectedGroupId = gid;
+    var g = _groupMap[gid];
+    var lbl = document.getElementById('groupFilterLabel');
+    if (lbl) { lbl.textContent = g ? g.name : 'All Groups'; }
     _renderGroupPanel();
   }
 
