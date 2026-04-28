@@ -31,6 +31,7 @@ var DVIRApp = (function() {
     return /^Group[A-Z]/.test(gid);
   }
 
+
   function init(api, state) {
     _api = api;
     _state = state;
@@ -312,7 +313,10 @@ var DVIRApp = (function() {
       var dev      = dm[did] || { name: did, groupName: '' };
       var distM    = dist[did] || 0;
       var inspCnt  = insp[did] || 0;
-      var moved    = distM > 0;
+      var thresholdInput = document.getElementById('distanceThreshold');
+      var thresholdMi = thresholdInput ? parseFloat(thresholdInput.value) || 0 : 2;
+      var thresholdKm = thresholdMi * 1.60934;
+      var moved    = distM > thresholdKm;
       var status   = !moved ? 'noinspection' : (inspCnt > 0 ? 'compliant' : 'notcompliant');
 
       rows.push({
