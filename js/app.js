@@ -1148,6 +1148,7 @@ var DVIRApp = (function() {
   // -- CSV export ---------------------------------------------------------------
 
   function exportCSV() {
+    if (_activeTab === 'monthly' && _mViewMode === 'group') { _exportCSVGroup(); return; }
     if (_activeTab === 'monthly') { _exportCSVMonthly(); return; }
     if (!_allRows.length) return;
     var dv    = document.getElementById('reportDate') && document.getElementById('reportDate').value;
@@ -1161,6 +1162,55 @@ var DVIRApp = (function() {
       ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
     });
     _downloadCSV(lines, 'lytx-dvir-compliance-' + dv + '.csv');
+  }
+
+  function _exportCSVGroup() {
+    if (!_mAllRows.length) return;
+    var ym         = document.getElementById('reportMonth') && document.getElementById('reportMonth').value;
+    var parentGroup = _selectedGroupId ? _groupMap[_selectedGroupId] : null;
+
+    // Rebuild the same group rows as _renderGroupTable
+    var childIds = [];
+    if (parentGroup && parentGroup.children) {
+      parentGroup.children.forEach(function(cid) {
+        if (!_isBuiltinGroup(cid) && _groupMap[cid]) childIds.push(cid);
+      });
+    }
+
+    function _aggregate(allowedSet) {
+      var comp = 0, notc = 0, noi = 0, insp = 0, vehicles = 0;
+      _mAllRows.forEach(function(r) {
+        var inSet = false;
+        for (var i = 0; i < r.allGroupIds.length; i++) {
+          if (allowedSet[r.allGroupIds[i]]) { inSet = true; break; }
+        }
+        if (!inSet) return;
+        vehicles++;
+        comp += r.compDays; notc += r.notcDays; noi += r.noiDays; insp += r.totalInsp;
+      });
+      return { comp: comp, notc: notc, noi: noi, insp: insp, vehicles: vehicles };
+    }
+
+    var lines = ['Month,Group,Type,Vehicles,Compliant Days,Not Compliant Days,No Inspection Days,Inspections Submitted'];
+
+    if (_selectedGroupId) {
+      var pAgg = _aggregate(_getGroupAndDescendants(_selectedGroupId));
+      lines.push([ym,
+        (parentGroup && parentGroup.name) || _selectedGroupId, 'Selected group',
+        pAgg.vehicles, pAgg.comp, pAgg.notc, pAgg.noi, pAgg.insp
+      ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
+    }
+
+    childIds.forEach(function(cid) {
+      var cg   = _groupMap[cid];
+      var agg  = _aggregate(_getGroupAndDescendants(cid));
+      lines.push([ym,
+        cg ? cg.name : cid, 'Sub-group',
+        agg.vehicles, agg.comp, agg.notc, agg.noi, agg.insp
+      ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
+    });
+
+    _downloadCSV(lines, 'lytx-dvir-compliance-groups-' + ym + '.csv');
   }
 
   function _exportCSVMonthly() {
