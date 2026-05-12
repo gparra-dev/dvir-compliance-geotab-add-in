@@ -30,12 +30,12 @@
 /* MAIN */
 .ldc-main{flex:1;padding:20px 24px}
 
-/* TAB SWITCHER */
-.ldc-tabs{display:flex;gap:6px;margin-bottom:16px}
-.ldc-tab{padding:6px 16px;border-radius:20px;font-size:11px;font-weight:700;cursor:pointer;border:1px solid rgba(152,164,174,0.35);background:transparent;color:#98A4AE;font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.6px}
-.ldc-tab.active{border-color:#009CDE;color:#009CDE;background:rgba(0,156,222,0.1)}
-.ldc-tab:hover{border-color:rgba(152,164,174,0.6);color:#FFFFFF}
-.ldc-tab.active:hover{border-color:#009CDE;color:#009CDE}
+/* TAB SWITCHER — lives in header next to brand */
+.ldc-tabs{display:flex;gap:6px;margin-left:8px;align-self:center}
+.ldc-tab{padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;border:1px solid rgba(255,255,255,0.2);background:transparent;color:rgba(255,255,255,0.5);font-family:Arial,sans-serif;text-transform:uppercase;letter-spacing:0.6px}
+.ldc-tab.active{border-color:#009CDE;color:#FFFFFF;background:rgba(0,156,222,0.25)}
+.ldc-tab:hover{border-color:rgba(255,255,255,0.4);color:#FFFFFF}
+.ldc-tab.active:hover{border-color:#009CDE;color:#FFFFFF}
 
 /* SUMMARY CARDS */
 .ldc-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
@@ -137,6 +137,10 @@
         <div class="ldc-title">DVIR Compliance Report</div>
         <div class="ldc-sub"><span id="ldcSub">Daily inspection tracking</span></div>
       </div>
+      <div class="ldc-tabs">
+        <button class="ldc-tab active" id="tabDaily"   onclick="DVIRApp.switchTab('daily')">Daily</button>
+        <button class="ldc-tab"        id="tabMonthly" onclick="DVIRApp.switchTab('monthly')">Monthly</button>
+      </div>
     </div>
     <div class="ldc-controls">
       <span id="dateControlWrapper" style="display:flex;align-items:center;gap:10px">
@@ -159,12 +163,6 @@
 
   <!-- MAIN -->
   <div class="ldc-main">
-
-    <!-- TAB SWITCHER -->
-    <div class="ldc-tabs">
-      <button class="ldc-tab active" id="tabDaily"   onclick="DVIRApp.switchTab('daily')">Daily</button>
-      <button class="ldc-tab"        id="tabMonthly" onclick="DVIRApp.switchTab('monthly')">Monthly</button>
-    </div>
 
     <!-- SUMMARY CARDS -->
     <div class="ldc-cards">
