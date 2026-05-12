@@ -431,7 +431,7 @@ var DVIRApp = (function() {
     // DEBUG — test sort-based pagination + PropertySelector on Trip
     var tripFrom = yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z';
     var tripTo   = yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z';
-    var propSel  = { fields: ['device', 'start', 'distance'], isIncluded: true };
+    var propSel  = { fields: ['id', 'device', 'start', 'distance'], isIncluded: true };
     _api.call('Get', {
       typeName: 'Trip',
       search: { fromDate: tripFrom, toDate: tripTo },
