@@ -16,7 +16,8 @@
 
 /* HEADER */
 .ldc-header{background:linear-gradient(135deg,#3D76BF 0%,#1F1446 100%);border-bottom:3px solid #009CDE;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-.ldc-brand{display:flex;align-items:center;gap:12px}
+.ldc-brand{display:flex;align-items:center;gap:12px;flex-wrap:nowrap}
+.ldc-tab-divider{width:1px;height:28px;background:rgba(255,255,255,0.15);flex-shrink:0}
 .ldc-logo{height:36px;max-height:36px;width:auto;max-width:120px;display:block;flex-shrink:0}
 .ldc-title{font-size:16px;font-weight:700;color:#FFFFFF}
 .ldc-sub{font-size:10px;color:rgba(255,255,255,0.5);margin-top:2px;text-transform:uppercase;letter-spacing:0.8px}
@@ -137,6 +138,7 @@
         <div class="ldc-title">DVIR Compliance Report</div>
         <div class="ldc-sub"><span id="ldcSub">Daily inspection tracking</span></div>
       </div>
+      <div class="ldc-tab-divider"></div>
       <div class="ldc-tabs">
         <button class="ldc-tab active" id="tabDaily"   onclick="DVIRApp.switchTab('daily')">Daily</button>
         <button class="ldc-tab"        id="tabMonthly" onclick="DVIRApp.switchTab('monthly')">Monthly</button>
