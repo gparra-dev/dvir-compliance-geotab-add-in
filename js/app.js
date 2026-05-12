@@ -488,12 +488,26 @@ var DVIRApp = (function() {
       return (b.notcDays - a.notcDays) || a.vehicleName.localeCompare(b.vehicleName);
     });
 
+    // Rebuild day totals from filtered rows only so the chart reflects the selected group
+    var filteredTotals = {};
+    allDays.forEach(function(day) {
+      filteredTotals[day] = { compliant: 0, notcompliant: 0, noinspection: 0 };
+    });
+    rows.forEach(function(r) {
+      r.dayStatuses.forEach(function(status, i) {
+        var day = allDays[i];
+        if (status === 'compliant')         filteredTotals[day].compliant++;
+        else if (status === 'notcompliant') filteredTotals[day].notcompliant++;
+        else                               filteredTotals[day].noinspection++;
+      });
+    });
+
     _mDayTotals = allDays.map(function(day) {
       return {
-        day: day,
-        compliant:    dayTotals[day].compliant,
-        notcompliant: dayTotals[day].notcompliant,
-        noinspection: dayTotals[day].noinspection
+        day:          day,
+        compliant:    filteredTotals[day].compliant,
+        notcompliant: filteredTotals[day].notcompliant,
+        noinspection: filteredTotals[day].noinspection
       };
     });
 
@@ -541,12 +555,11 @@ var DVIRApp = (function() {
     var barW   = Math.max(2, Math.floor(chartW / numDays) - 1);
     var gap    = Math.floor(chartW / numDays) - barW;
 
-    // Y-axis: scale to active vehicles only (compliant + notcompliant)
-    // This prevents the no-inspection-needed count from drowning out the signal
+    // Y-axis: scale to total vehicles per day (all three statuses stacked)
     var maxActive = 0;
     _mDayTotals.forEach(function(d) {
-      var active = d.compliant + d.notcompliant;
-      if (active > maxActive) maxActive = active;
+      var total = d.compliant + d.notcompliant + d.noinspection;
+      if (total > maxActive) maxActive = total;
     });
     if (maxActive === 0) maxActive = 1;
 
@@ -566,24 +579,26 @@ var DVIRApp = (function() {
            + 'font-size="9" font-family="Arial" fill="#98A4AE">' + label + '</text>';
     });
 
-    // Bars — only compliant (green) + notcompliant (red); no-inspection days show no bar
+    // Bars — full stack: compliant (green) + notcompliant (red) + noinspection (blue)
     _mDayTotals.forEach(function(d, i) {
-      var active = d.compliant + d.notcompliant;
+      var total  = d.compliant + d.notcompliant + d.noinspection;
       var x      = padL + i * (barW + gap);
       var yBase  = padT + chartH;
       var dayNum = i + 1;
       var dowStr = _dowName(d.day);
 
-      var hComp = active > 0 ? Math.round(d.compliant    / maxActive * chartH) : 0;
-      var hNotc = active > 0 ? Math.round(d.notcompliant / maxActive * chartH) : 0;
+      var hComp = total > 0 ? Math.round(d.compliant    / maxActive * chartH) : 0;
+      var hNotc = total > 0 ? Math.round(d.notcompliant / maxActive * chartH) : 0;
+      var hNoi  = total > 0 ? Math.round(d.noinspection / maxActive * chartH) : 0;
 
-      var pComp = active > 0 ? Math.round(d.compliant    / active * 100) : 0;
-      var pNotc = active > 0 ? Math.round(d.notcompliant / active * 100) : 0;
+      var pComp = total > 0 ? Math.round(d.compliant    / total * 100) : 0;
+      var pNotc = total > 0 ? Math.round(d.notcompliant / total * 100) : 0;
+      var pNoi  = total > 0 ? Math.round(d.noinspection / total * 100) : 0;
 
       var tipText = _esc(monthName.split(' ')[0] + ' ' + dayNum + ' (' + dowStr + ')'
-        + ' \xb7 ' + d.compliant    + ' compliant ('     + pComp + '%)'
-        + ' \xb7 ' + d.notcompliant + ' not compliant (' + pNotc + '%)'
-        + ' \xb7 ' + d.noinspection + ' no insp. needed');
+        + ' \xb7 ' + d.compliant    + ' compliant ('      + pComp + '%)'
+        + ' \xb7 ' + d.notcompliant + ' not compliant ('  + pNotc + '%)'
+        + ' \xb7 ' + d.noinspection + ' no insp. needed (' + pNoi  + '%)');
 
       svg += '<g><title>' + tipText + '</title>';
 
@@ -595,11 +610,9 @@ var DVIRApp = (function() {
         svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc) + '" '
              + 'width="' + barW + '" height="' + hNotc + '" fill="#CF4520"/>';
       }
-
-      // Show a faint background bar on days with no active vehicles (weekends etc.)
-      if (active === 0) {
-        svg += '<rect x="' + x + '" y="' + padT + '" '
-             + 'width="' + barW + '" height="' + chartH + '" fill="#3D76BF" fill-opacity="0.15"/>';
+      if (hNoi > 0) {
+        svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc - hNoi) + '" '
+             + 'width="' + barW + '" height="' + hNoi + '" fill="#3D76BF"/>';
       }
 
       svg += '</g>';
@@ -613,17 +626,15 @@ var DVIRApp = (function() {
     svg += '</svg>';
     container.innerHTML = svg;
 
-    // Update chart title to reflect active-only scale
     var titleEl = document.getElementById('chartTitle');
-    if (titleEl) titleEl.textContent = 'Active vehicle compliance by day — ' + monthName;
+    if (titleEl) titleEl.textContent = 'Fleet compliance by day \u2014 ' + monthName;
 
-    // Update legend to reflect active-only chart (remove no-insp. needed swatch)
     var legendEl = document.getElementById('chartLegend');
     if (legendEl) {
       legendEl.innerHTML =
         '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#84BD00"></div>Compliant</div>'
         + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#CF4520"></div>Not compliant</div>'
-        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#3D76BF;opacity:0.35"></div>No vehicles moved</div>';
+        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#3D76BF"></div>No insp. needed</div>';
     }
   }
 
