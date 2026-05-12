@@ -428,20 +428,41 @@ var DVIRApp = (function() {
     if (trips.length > 0) console.log('[DVIR monthly debug] sample trip:', JSON.stringify(trips[0]));
     if (dvirs.length > 0) console.log('[DVIR monthly debug] sample dvir:', JSON.stringify(dvirs[0]));
 
-    // DEBUG — test skip inside search vs as top-level param, and full DVIR count
-    _api.multiCall([
-      ['Get', { typeName: 'Trip',    search: { fromDate: yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z', toDate: yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z', resultsLimit: 25000 }, skip: 25000 }],
-      ['Get', { typeName: 'Trip',    search: { fromDate: yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z', toDate: yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z', resultsLimit: 25000, skip: 25000 } }],
-      ['Get', { typeName: 'DVIRLog', search: { fromDate: yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z', toDate: yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z', resultsLimit: 25000 } }]
-    ], function(r2) {
-      console.log('[DVIR monthly debug] trips page 2 skip=25000 OUTSIDE search:', r2[0] && r2[0].length);
-      console.log('[DVIR monthly debug] trips page 2 skip=25000 INSIDE search:', r2[1] && r2[1].length);
-      console.log('[DVIR monthly debug] dvirs full month total:', r2[2] && r2[2].length, '(hit 25k cap?', r2[2] && r2[2].length === 25000, ')');
-      if (r2[0] && r2[0].length > 0) console.log('[DVIR monthly debug] page2-outside first trip start:', r2[0][0].start);
-      if (r2[1] && r2[1].length > 0) console.log('[DVIR monthly debug] page2-inside first trip start:', r2[1][0].start);
-    }, function(e) {
-      console.log('[DVIR monthly debug] page 2 error:', e && e.message);
-    });
+    // DEBUG — test sort-based pagination + PropertySelector on Trip
+    var tripFrom = yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z';
+    var tripTo   = yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z';
+    var propSel  = { fields: ['device', 'start', 'distance'], isIncluded: true };
+    _api.call('Get', {
+      typeName: 'Trip',
+      search: { fromDate: tripFrom, toDate: tripTo },
+      resultsLimit: 25000,
+      propertySelector: propSel,
+      sort: { sortBy: 'start' }
+    }, function(page1) {
+      console.log('[DVIR sort debug] page 1 count:', page1 && page1.length);
+      if (!page1 || !page1.length) return;
+      var last = page1[page1.length - 1];
+      console.log('[DVIR sort debug] page 1 first start:', page1[0].start, 'id:', page1[0].id);
+      console.log('[DVIR sort debug] page 1 last  start:', last.start, 'id:', last.id);
+      console.log('[DVIR sort debug] page 1 sample keys:', Object.keys(page1[0]).join(','));
+      _api.call('Get', {
+        typeName: 'Trip',
+        search: { fromDate: tripFrom, toDate: tripTo },
+        resultsLimit: 25000,
+        propertySelector: propSel,
+        sort: { sortBy: 'start', offset: last.start, lastId: last.id }
+      }, function(page2) {
+        console.log('[DVIR sort debug] page 2 count:', page2 && page2.length);
+        if (page2 && page2.length > 0) {
+          console.log('[DVIR sort debug] page 2 first start:', page2[0].start, 'id:', page2[0].id);
+          console.log('[DVIR sort debug] page 2 last  start:', page2[page2.length-1].start);
+          console.log('[DVIR sort debug] overlap? p1 last id === p2 first id:', last.id === page2[0].id);
+          console.log('[DVIR sort debug] page 2 hit cap?', page2.length === 25000);
+        } else {
+          console.log('[DVIR sort debug] page 2 empty — all data fits on one page');
+        }
+      }, function(e) { console.log('[DVIR sort debug] page 2 error:', e && e.message); });
+    }, function(e) { console.log('[DVIR sort debug] page 1 error:', e && e.message); });
 
     // Bucket trip distance by device + day
     // Trip.start field gives the timestamp; substring(0,10) gives YYYY-MM-DD
