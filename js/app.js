@@ -420,6 +420,12 @@ var DVIRApp = (function() {
       allDays.push(yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(d).padStart(2, '0'));
     }
 
+    // DEBUG — log first 3 trips to console so we can inspect field names and timestamp format
+    console.log('[DVIR monthly debug] total trips returned:', trips.length);
+    console.log('[DVIR monthly debug] total dvirs returned:', dvirs.length);
+    if (trips.length > 0) console.log('[DVIR monthly debug] sample trip object:', JSON.stringify(trips[0]));
+    if (dvirs.length > 0) console.log('[DVIR monthly debug] sample dvir object:', JSON.stringify(dvirs[0]));
+
     // Bucket trip distance by device + day
     // Trip.start field gives the timestamp; substring(0,10) gives YYYY-MM-DD
     var distByDeviceDay = {};  // did -> { dayStr -> distanceKm }
