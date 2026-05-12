@@ -404,6 +404,13 @@ var DVIRApp = (function() {
     var tripSearch = { fromDate: from, toDate: to };
     if (groupSearch) tripSearch.deviceSearch = { groups: groupSearch };
 
+    // DEBUG
+    if (pageNum === 1) {
+      console.log('[trip debug] page 1 tripSearch:', JSON.stringify(tripSearch));
+      console.log('[trip debug] groupSearch value:', JSON.stringify(groupSearch));
+      console.log('[trip debug] _selectedGroupId:', _selectedGroupId);
+    }
+
     _api.call('Get', {
       typeName: 'Trip',
       search: tripSearch,
@@ -412,6 +419,12 @@ var DVIRApp = (function() {
       sort: sortObj
     }, function(page) {
       var combined = accumulated.concat(page || []);
+      // DEBUG
+      console.log('[trip debug] page ' + pageNum + ' returned:', (page || []).length, 'trips. Hit cap?', (page || []).length === 25000);
+      if (page && page.length > 0) {
+        console.log('[trip debug] page ' + pageNum + ' sample device ids:', page.slice(0, 3).map(function(t) { return t.device && t.device.id; }).join(','));
+      }
+
       if (!page || page.length < 25000) {
         callback(combined);
       } else {
@@ -420,6 +433,7 @@ var DVIRApp = (function() {
         _fetchAllTrips(from, to, groupSearch, combined, pageNum + 1, last.start, last.id, callback);
       }
     }, function(e) {
+      console.log('[trip debug] page ' + pageNum + ' ERROR:', e && e.message);
       _showError('API error fetching trips (page ' + pageNum + '): ' + (e && e.message ? e.message : String(e)));
     });
   }
