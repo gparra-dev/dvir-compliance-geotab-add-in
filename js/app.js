@@ -243,7 +243,6 @@ var DVIRApp = (function() {
     var viewModeBtns = document.getElementById('viewModeBtns');
     if (viewModeBtns) viewModeBtns.style.display = tab === 'monthly' ? '' : 'none';
     if (tab === 'monthly') {
-      console.log('[DVIR info] switchTab monthly — resetting _mViewMode to vehicle');
       _mViewMode = 'vehicle'; _updateTableHeader();
     } else {
       var titleEl = document.getElementById('tableTitle');
@@ -640,7 +639,6 @@ var DVIRApp = (function() {
     });
 
     _mAllRows = rows; _mActiveFilter = 'all'; _mPage = 1;
-    console.log('[DVIR info] _processMonthly done, _mViewMode=' + _mViewMode);
     _updateSummaryMonthly(yyyy, mm);
     _renderChart(yyyy, mm);
     _mSetFilterBtn('fa');
