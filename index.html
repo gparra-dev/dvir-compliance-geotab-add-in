@@ -234,14 +234,20 @@
     <div class="ldc-table-section">
       <div class="ldc-table-header">
         <div>
-          <div class="ldc-table-title">Vehicle Detail</div>
+          <div class="ldc-table-title" id="tableTitle">Vehicle Detail</div>
           <div class="ldc-table-meta" id="tableMeta">Run a report to see results</div>
         </div>
         <div class="ldc-filters">
-          <button class="ldc-filter-btn active" id="fa"  onclick="DVIRApp.filterAny('all')">All</button>
-          <button class="ldc-filter-btn"        id="fc"  onclick="DVIRApp.filterAny('compliant')">Compliant</button>
-          <button class="ldc-filter-btn"        id="fn"  onclick="DVIRApp.filterAny('notcompliant')">Not Compliant</button>
-          <button class="ldc-filter-btn"        id="fni" onclick="DVIRApp.filterAny('noinspection')">No Inspection Needed</button>
+          <div id="viewModeBtns" style="display:none;margin-right:6px;border-right:1px solid rgba(152,164,174,0.2);padding-right:10px">
+            <button class="ldc-filter-btn active" id="vVehicle" onclick="DVIRApp.switchViewMode('vehicle')">Vehicle detail</button>
+            <button class="ldc-filter-btn"        id="vGroup"   onclick="DVIRApp.switchViewMode('group')">Group summary</button>
+          </div>
+          <div id="vehicleFilterBtns" style="display:flex;gap:6px;align-items:center">
+            <button class="ldc-filter-btn active" id="fa"  onclick="DVIRApp.filterAny('all')">All</button>
+            <button class="ldc-filter-btn"        id="fc"  onclick="DVIRApp.filterAny('compliant')">Compliant</button>
+            <button class="ldc-filter-btn"        id="fn"  onclick="DVIRApp.filterAny('notcompliant')">Not Compliant</button>
+            <button class="ldc-filter-btn"        id="fni" onclick="DVIRApp.filterAny('noinspection')">No Inspection Needed</button>
+          </div>
           <button class="ldc-export-btn" onclick="DVIRApp.exportCSV()">Export CSV</button>
         </div>
       </div>

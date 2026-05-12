@@ -36,6 +36,7 @@ var DVIRApp = (function() {
   var _mActiveFilter = 'all';
   var _mPage         = 1;
   var _mDayTotals    = [];
+  var _mViewMode     = 'vehicle'; // 'vehicle' or 'group'
 
   // -- Helpers ------------------------------------------------------------------
 
@@ -238,8 +239,40 @@ var DVIRApp = (function() {
     var chartSection = document.getElementById('monthlyChart');
     if (chartSection) chartSection.style.display = tab === 'monthly' ? 'block' : 'none';
 
+    // Show view mode switcher only on monthly tab; reset to vehicle view
+    var viewModeBtns = document.getElementById('viewModeBtns');
+    if (viewModeBtns) viewModeBtns.style.display = tab === 'monthly' ? '' : 'none';
+    if (tab === 'monthly') { _mViewMode = 'vehicle'; _updateTableHeader(); }
+    else {
+      var titleEl = document.getElementById('tableTitle');
+      if (titleEl) titleEl.textContent = 'Vehicle Detail';
+      var vehicleFilterBtns = document.getElementById('vehicleFilterBtns');
+      if (vehicleFilterBtns) vehicleFilterBtns.style.display = '';
+    }
+
     // Auto-run when switching tabs
     run();
+  }
+
+  function switchViewMode(mode) {
+    _mViewMode = mode;
+    var vVehicle = document.getElementById('vVehicle');
+    var vGroup   = document.getElementById('vGroup');
+    if (vVehicle) vVehicle.className = 'ldc-filter-btn' + (mode === 'vehicle' ? ' active' : '');
+    if (vGroup)   vGroup.className   = 'ldc-filter-btn' + (mode === 'group'   ? ' active' : '');
+
+    // Show/hide filter buttons and export — only on vehicle view
+    var filterBtns = document.getElementById('vehicleFilterBtns');
+    if (filterBtns) filterBtns.style.display = mode === 'vehicle' ? '' : 'none';
+
+    var pag = document.getElementById('pagination');
+    if (pag) pag.style.display = 'none';
+
+    if (mode === 'group') {
+      _renderGroupTable();
+    } else {
+      _mApplyFilter();
+    }
   }
 
   function _resetToIdle() {
@@ -604,10 +637,11 @@ var DVIRApp = (function() {
       };
     });
 
-    _mAllRows = rows; _mActiveFilter = 'all'; _mPage = 1;
+    _mAllRows = rows; _mActiveFilter = 'all'; _mPage = 1; _mViewMode = 'vehicle';
     _updateSummaryMonthly(yyyy, mm);
     _renderChart(yyyy, mm);
     _mSetFilterBtn('fa');
+    _updateTableHeader();
     _mApplyFilter();
     _resetBtn();
   }
@@ -727,6 +761,154 @@ var DVIRApp = (function() {
         + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#3D76BF"></div>No insp. needed</div>'
         + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#141428;border:1px solid rgba(152,164,174,0.3)"></div>Future</div>';
     }
+  }
+
+  // -- Monthly table header (view mode switcher) --------------------------------
+
+  function _updateTableHeader() {
+    var titleEl      = document.getElementById('tableTitle');
+    var filterBtns   = document.getElementById('vehicleFilterBtns');
+    var viewBtns     = document.getElementById('viewModeBtns');
+    if (titleEl)    titleEl.textContent    = _mViewMode === 'group' ? 'Group Summary' : 'Vehicle Detail';
+    if (filterBtns) filterBtns.style.display = _mViewMode === 'vehicle' ? '' : 'none';
+    if (viewBtns) {
+      var vv = document.getElementById('vVehicle');
+      var vg = document.getElementById('vGroup');
+      if (vv) vv.className = 'ldc-filter-btn' + (_mViewMode === 'vehicle' ? ' active' : '');
+      if (vg) vg.className = 'ldc-filter-btn' + (_mViewMode === 'group'   ? ' active' : '');
+    }
+  }
+
+  // -- Group summary table (monthly only) ----------------------------------------
+  // Aggregates _mAllRows by direct children of _selectedGroupId.
+  // Shows one row for the selected group itself (total) + one row per child group.
+
+  function _renderGroupTable() {
+    var container = document.getElementById('tableContainer');
+    var pagination = document.getElementById('pagination');
+    if (pagination) pagination.style.display = 'none';
+
+    if (!_mAllRows.length) {
+      container.innerHTML = '<div class="ldc-state-box"><p>No data to summarize</p></div>';
+      return;
+    }
+
+    // Get direct non-builtin children of selected group
+    var parentGroup  = _selectedGroupId ? _groupMap[_selectedGroupId] : null;
+    var childIds     = [];
+    if (parentGroup && parentGroup.children) {
+      parentGroup.children.forEach(function(cid) {
+        if (!_isBuiltinGroup(cid) && _groupMap[cid]) childIds.push(cid);
+      });
+    }
+
+    // Helper: aggregate rows whose allGroupIds intersect an allowed set
+    function _aggregate(allowedSet) {
+      var comp = 0, notc = 0, noi = 0, insp = 0, vehicles = 0;
+      _mAllRows.forEach(function(r) {
+        var inSet = false;
+        for (var i = 0; i < r.allGroupIds.length; i++) {
+          if (allowedSet[r.allGroupIds[i]]) { inSet = true; break; }
+        }
+        if (!inSet) return;
+        vehicles++;
+        comp += r.compDays; notc += r.notcDays; noi += r.noiDays; insp += r.totalInsp;
+      });
+      return { comp: comp, notc: notc, noi: noi, insp: insp, vehicles: vehicles };
+    }
+
+    // Build group rows
+    var groupRows = [];
+
+    // Row 0: selected group total (all descendants already in _mAllRows)
+    var parentAllowed = _selectedGroupId ? _getGroupAndDescendants(_selectedGroupId) : null;
+    if (parentAllowed) {
+      var pAgg = _aggregate(parentAllowed);
+      groupRows.push({
+        gid:      _selectedGroupId,
+        name:     (parentGroup && parentGroup.name) || 'Selected group',
+        isParent: true,
+        comp: pAgg.comp, notc: pAgg.notc, noi: pAgg.noi, insp: pAgg.insp, vehicles: pAgg.vehicles
+      });
+    }
+
+    // One row per direct child
+    childIds.forEach(function(cid) {
+      var childGroup   = _groupMap[cid];
+      var childAllowed = _getGroupAndDescendants(cid);
+      var agg          = _aggregate(childAllowed);
+      groupRows.push({
+        gid:      cid,
+        name:     childGroup ? childGroup.name : cid,
+        isParent: false,
+        comp: agg.comp, notc: agg.notc, noi: agg.noi, insp: agg.insp, vehicles: agg.vehicles
+      });
+    });
+
+    if (groupRows.length === 0) {
+      container.innerHTML = '<div class="ldc-state-box"><p>No groups to display</p></div>';
+      return;
+    }
+
+    var ym = document.getElementById('reportMonth') && document.getElementById('reportMonth').value;
+    var monthLabel = ym ? _monthLabel(ym) : '';
+
+    // Update meta line
+    var metaEl = document.getElementById('tableMeta');
+    if (metaEl) {
+      metaEl.textContent = (parentGroup ? parentGroup.name : '') +
+        (childIds.length > 0 ? ' \u00b7 ' + childIds.length + ' sub-group' + (childIds.length !== 1 ? 's' : '') : '') +
+        ' \u00b7 ' + monthLabel;
+    }
+
+    var html = '<table class="ldc-table"><thead><tr>'
+      + '<th style="width:220px">Group</th>'
+      + '<th>Compliance split</th>'
+      + '<th style="text-align:center">Vehicles</th>'
+      + '<th style="text-align:center">Compliant<br>days</th>'
+      + '<th style="text-align:center">Not compliant<br>days</th>'
+      + '<th style="text-align:center">No insp.<br>needed</th>'
+      + '<th style="text-align:center">Inspections<br>submitted</th>'
+      + '</tr></thead><tbody>';
+
+    groupRows.forEach(function(gr) {
+      var total   = gr.comp + gr.notc + gr.noi;
+      var pComp   = total > 0 ? Math.round(gr.comp / total * 100) : 0;
+      var pNotc   = total > 0 ? Math.round(gr.notc / total * 100) : 0;
+      var pNoi    = total > 0 ? Math.round(gr.noi  / total * 100) : 0;
+      var wComp   = total > 0 ? Math.round(gr.comp / total * 100) : 0;
+      var wNotc   = total > 0 ? Math.round(gr.notc / total * 100) : 0;
+      var wNoi    = total > 0 ? Math.round(gr.noi  / total * 100) : 0;
+
+      var barHtml = '<div style="height:6px;background:rgba(152,164,174,0.12);border-radius:3px;overflow:hidden;display:flex">'
+        + '<div style="width:' + wComp + '%;background:#84BD00;height:100%"></div>'
+        + '<div style="width:' + wNotc + '%;background:#CF4520;height:100%"></div>'
+        + '<div style="width:' + wNoi  + '%;background:#3D76BF;height:100%"></div>'
+        + '</div>'
+        + '<div style="display:flex;gap:8px;margin-top:3px;font-size:9px">'
+        + '<span style="color:#84BD00">' + pComp + '% comp</span>'
+        + '<span style="color:#CF4520">' + pNotc + '% not</span>'
+        + '<span style="color:#3D76BF">' + pNoi  + '% no insp</span>'
+        + '</div>';
+
+      var rowStyle = gr.isParent ? 'background:rgba(0,156,222,0.05)' : '';
+      var indent   = gr.isParent ? '' : 'padding-left:24px;';
+      var nameHtml = '<div style="font-weight:600;font-size:13px;' + indent + '">' + _esc(gr.name) + '</div>'
+        + '<div style="font-size:10px;color:#98A4AE;margin-top:2px;' + indent + '">' + (gr.isParent ? 'Selected group \u00b7 all vehicles' : 'Sub-group') + '</div>';
+
+      html += '<tr style="' + rowStyle + '">'
+        + '<td>' + nameHtml + '</td>'
+        + '<td style="min-width:140px">' + barHtml + '</td>'
+        + '<td style="text-align:center"><span style="background:rgba(0,156,222,0.12);color:#009CDE;border-radius:3px;padding:2px 6px;font-size:10px;font-weight:700">' + gr.vehicles + '</span></td>'
+        + '<td style="text-align:center;color:' + (gr.comp > 0 ? '#84BD00' : '#98A4AE') + ';font-weight:700;font-size:13px">' + gr.comp + '</td>'
+        + '<td style="text-align:center;color:' + (gr.notc > 0 ? '#CF4520' : '#98A4AE') + ';font-weight:700;font-size:13px">' + gr.notc + '</td>'
+        + '<td style="text-align:center;color:#98A4AE;font-weight:700;font-size:13px">' + gr.noi + '</td>'
+        + '<td style="text-align:center;color:' + (gr.insp > 0 ? '#009CDE' : '#98A4AE') + ';font-weight:700;font-size:13px">' + gr.insp + '</td>'
+        + '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
   }
 
   // -- Monthly filter -----------------------------------------------------------
@@ -1122,7 +1304,7 @@ var DVIRApp = (function() {
   // -- Public API ---------------------------------------------------------------
 
   return {
-    init: init, run: run, switchTab: switchTab,
+    init: init, run: run, switchTab: switchTab, switchViewMode: switchViewMode,
     filter: filter, filterAny: filterAny,
     prevPage: prevPage, nextPage: nextPage,
     exportCSV: exportCSV,
