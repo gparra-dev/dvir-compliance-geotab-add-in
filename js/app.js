@@ -409,13 +409,13 @@ var DVIRApp = (function() {
       if (scopedDeviceIds && scopedDeviceIds.length > 0) {
         _setLoadingMessage('Fetching trips for ' + scopedDeviceIds.length + ' vehicles...');
         _fetchTripsByDeviceBatched(from, to, scopedDeviceIds, BATCH_SIZE, [], function(allTrips) {
-          console.log('[trip debug] per-device fetch: ' + allTrips.length + ' trips for ' + scopedDeviceIds.length + ' devices');
+          console.log('[DVIR info] per-device fetch: ' + allTrips.length + ' trips for ' + scopedDeviceIds.length + ' vehicles');
           _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
         });
       } else {
         _setLoadingMessage('Fetching trips -- page 1...');
         _fetchAllTrips(from, to, [], 1, null, null, function(allTrips) {
-          console.log('[trip debug] paginated fetch: ' + allTrips.length + ' trips total');
+          console.log('[DVIR info] paginated fetch: ' + allTrips.length + ' trips total');
           _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
         });
       }
@@ -432,9 +432,9 @@ var DVIRApp = (function() {
   function _fetchTripsByDeviceBatched(from, to, deviceIds, batchSize, accumulated, callback) {
     if (deviceIds.length === 0) { callback(accumulated); return; }
 
-    var batch    = deviceIds.slice(0, batchSize);
+    var batch     = deviceIds.slice(0, batchSize);
     var remaining = deviceIds.slice(batchSize);
-    var batchNum  = Math.ceil((accumulated.length / batchSize)) + 1; // rough batch counter for message
+    var batchNum  = Math.floor(accumulated.length / batchSize) + 1;
 
     var calls = batch.map(function(did) {
       return ['Get', {
@@ -453,7 +453,7 @@ var DVIRApp = (function() {
       var combined = accumulated.concat(batchTrips);
 
       if (remaining.length > 0) {
-        _setLoadingMessage('Fetching trips -- batch ' + (batchNum + 1) + ' of ' + Math.ceil(deviceIds.length / batchSize + batchNum - 1) + '...');
+        _setLoadingMessage('Loading trips — batch ' + (batchNum + 1) + '...');
         _fetchTripsByDeviceBatched(from, to, remaining, batchSize, combined, callback);
       } else {
         callback(combined);
