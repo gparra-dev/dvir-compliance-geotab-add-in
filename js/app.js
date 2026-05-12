@@ -14,7 +14,7 @@ geotab.addin.dvirCompliance = function(api, state) {
 var DVIRApp = (function() {
   'use strict';
 
-  // ── Shared state ─────────────────────────────────────────────────────────────
+  // -- Shared state -------------------------------------------------------------
   var _api             = null;
   var _state           = null;
   var _isMetric        = true;
@@ -22,14 +22,14 @@ var DVIRApp = (function() {
   var _selectedGroupId = null;
   var _navGroupId      = null;
 
-  // ── Daily state ───────────────────────────────────────────────────────────────
+  // -- Daily state --------------------------------------------------------------
   var _allRows      = [];
   var _filteredRows = [];
   var _activeFilter = 'all';
   var _page         = 1;
   var _pageSize     = 50;
 
-  // ── Monthly state ─────────────────────────────────────────────────────────────
+  // -- Monthly state ------------------------------------------------------------
   var _activeTab     = 'daily';
   var _mAllRows      = [];
   var _mFilteredRows = [];
@@ -37,7 +37,7 @@ var DVIRApp = (function() {
   var _mPage         = 1;
   var _mDayTotals    = [];
 
-  // ── Helpers ───────────────────────────────────────────────────────────────────
+  // -- Helpers ------------------------------------------------------------------
 
   function _isBuiltinGroup(gid) {
     return /^Group[A-Z]/.test(gid);
@@ -71,7 +71,15 @@ var DVIRApp = (function() {
     return months[parseInt(parts[1], 10) - 1] + ' ' + parts[0];
   }
 
-  // ── Initialisation ────────────────────────────────────────────────────────────
+  // Returns today as YYYY-MM-DD in UTC
+  function _todayUTC() {
+    var n = new Date();
+    return n.getUTCFullYear() + '-'
+      + String(n.getUTCMonth() + 1).padStart(2, '0') + '-'
+      + String(n.getUTCDate()).padStart(2, '0');
+  }
+
+  // -- Initialisation -----------------------------------------------------------
 
   function init(api, state) {
     _api   = api;
@@ -97,7 +105,7 @@ var DVIRApp = (function() {
     });
   }
 
-  // ── Group tree ────────────────────────────────────────────────────────────────
+  // -- Group tree ---------------------------------------------------------------
 
   function _buildGroupTree(groups, user) {
     _groupMap = {};
@@ -197,7 +205,7 @@ var DVIRApp = (function() {
     return result;
   }
 
-  // ── Tab switching ─────────────────────────────────────────────────────────────
+  // -- Tab switching ------------------------------------------------------------
 
   function switchTab(tab) {
     _activeTab = tab;
@@ -230,7 +238,8 @@ var DVIRApp = (function() {
     var chartSection = document.getElementById('monthlyChart');
     if (chartSection) chartSection.style.display = tab === 'monthly' ? 'block' : 'none';
 
-    _resetToIdle();
+    // Auto-run when switching tabs
+    run();
   }
 
   function _resetToIdle() {
@@ -251,7 +260,7 @@ var DVIRApp = (function() {
     _resetBtn();
   }
 
-  // ── Shared run entry point ────────────────────────────────────────────────────
+  // -- Shared run entry point ---------------------------------------------------
 
   function run() {
     if (_activeTab === 'monthly') { _runMonthly(); return; }
@@ -276,7 +285,7 @@ var DVIRApp = (function() {
     });
   }
 
-  // ── Daily processing ──────────────────────────────────────────────────────────
+  // -- Daily processing ---------------------------------------------------------
 
   function _process(results) {
     var trips   = (results && results[0]) || [];
@@ -335,7 +344,7 @@ var DVIRApp = (function() {
     _updateSummary(); _setFilterBtn('fa'); _applyFilter(); _resetBtn();
   }
 
-  // ── Monthly run ───────────────────────────────────────────────────────────────
+  // -- Monthly run --------------------------------------------------------------
 
   function _runMonthly() {
     var ymEl = document.getElementById('reportMonth');
@@ -351,9 +360,19 @@ var DVIRApp = (function() {
     var from    = ym + '-01T00:00:00.000Z';
     var to      = ym + '-' + String(lastDay).padStart(2, '0') + 'T23:59:59.999Z';
 
-    // Step 1 — fetch DVIRLogs, Devices, Groups in one multiCall (all fit under cap)
+    // Determine today UTC -- used to black out future days in the current month
+    var today          = _todayUTC();
+    var isCurrentMonth = (today.substring(0, 7) === ym);
+    var lastKnownDay   = isCurrentMonth ? parseInt(today.substring(8, 10), 10) : lastDay;
+
+    // Scope trips and DVIRLogs to the selected group if one is set
+    var groupSearch = _selectedGroupId ? [{ id: _selectedGroupId }] : null;
+    var dvirSearch  = { fromDate: from, toDate: to };
+    if (groupSearch) dvirSearch.groups = groupSearch;
+
+    // Step 1 -- fetch DVIRLogs, Devices, Groups in one multiCall
     _api.multiCall([
-      ['Get', { typeName: 'DVIRLog', search: { fromDate: from, toDate: to } }],
+      ['Get', { typeName: 'DVIRLog', search: dvirSearch }],
       ['Get', { typeName: 'Device',  search: {} }],
       ['Get', { typeName: 'Group',   search: {} }]
     ], function(r1) {
@@ -361,54 +380,53 @@ var DVIRApp = (function() {
       var devices = r1[1] || [];
       var groups  = r1[2] || [];
 
-      // Step 2 — paginate trips
-      _setLoadingMessage('Fetching trips\u2014page 1\u2026');
-      _fetchAllTrips(from, to, [], 1, null, null, function(allTrips) {
-        _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay);
+      // Step 2 -- paginate trips, scoped to selected group
+      _setLoadingMessage('Fetching trips -- page 1...');
+      _fetchAllTrips(from, to, groupSearch, [], 1, null, null, function(allTrips) {
+        _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
       });
     }, function(e) {
       _showError('API error: ' + (e && e.message ? e.message : String(e)));
     });
   }
 
-  // ── Trip pagination ───────────────────────────────────────────────────────────
-  // Recursively fetches all trips for the month using sort-based cursor pagination.
-  // PropertySelector limits each record to only the fields we need, keeping
-  // payloads small. Continues until a page returns fewer than 25,000 records.
+  // -- Trip pagination ----------------------------------------------------------
+  // Sort-based cursor pagination. PropertySelector keeps payloads small.
+  // Stops when a page returns fewer than 25,000 records.
 
-  function _fetchAllTrips(from, to, accumulated, pageNum, offsetStart, offsetId, callback) {
+  function _fetchAllTrips(from, to, groupSearch, accumulated, pageNum, offsetStart, offsetId, callback) {
     var sortObj = { sortBy: 'start' };
     if (offsetStart) {
       sortObj.offset = offsetStart;
       sortObj.lastId = offsetId;
     }
 
+    var tripSearch = { fromDate: from, toDate: to };
+    if (groupSearch) tripSearch.groups = groupSearch;
+
     _api.call('Get', {
       typeName: 'Trip',
-      search: { fromDate: from, toDate: to },
+      search: tripSearch,
       resultsLimit: 25000,
       propertySelector: { fields: ['id', 'device', 'start', 'distance'], isIncluded: true },
       sort: sortObj
     }, function(page) {
       var combined = accumulated.concat(page || []);
-
       if (!page || page.length < 25000) {
-        // Done — all pages retrieved
         callback(combined);
       } else {
-        // More pages — advance cursor to last record of this page
         var last = page[page.length - 1];
-        _setLoadingMessage('Fetching trips\u2014page ' + (pageNum + 1) + '\u2026');
-        _fetchAllTrips(from, to, combined, pageNum + 1, last.start, last.id, callback);
+        _setLoadingMessage('Fetching trips -- page ' + (pageNum + 1) + '...');
+        _fetchAllTrips(from, to, groupSearch, combined, pageNum + 1, last.start, last.id, callback);
       }
     }, function(e) {
       _showError('API error fetching trips (page ' + pageNum + '): ' + (e && e.message ? e.message : String(e)));
     });
   }
 
-  // ── Monthly processing ────────────────────────────────────────────────────────
+  // -- Monthly processing -------------------------------------------------------
 
-  function _processMonthly(trips, dvirs, devices, groups, yyyy, mm, lastDay) {
+  function _processMonthly(trips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay) {
     var gm = {};
     groups.forEach(function(g) {
       gm[g.id] = { name: g.name || g.id, parent: g.parent && g.parent.id };
@@ -416,13 +434,17 @@ var DVIRApp = (function() {
 
     var dm = _buildDeviceMap(devices, gm);
 
-    // Build all calendar day strings for the month
-    var allDays = [];
+    // Build calendar days -- mark days beyond lastKnownDay as future
+    var allDays    = [];
+    var futureDays = {};
+    var mmStr      = String(mm).padStart(2, '0');
     for (var d = 1; d <= lastDay; d++) {
-      allDays.push(yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(d).padStart(2, '0'));
+      var ds = yyyy + '-' + mmStr + '-' + String(d).padStart(2, '0');
+      allDays.push(ds);
+      if (d > lastKnownDay) futureDays[ds] = true;
     }
 
-    // Bucket trip distance by device + day using trip.start substring
+    // Bucket trip distance by device + day
     var distByDeviceDay = {};
     trips.forEach(function(t) {
       var did = t.device && t.device.id;
@@ -445,12 +467,6 @@ var DVIRApp = (function() {
 
     var thresholdKm = _getThreshold() * 1.60934;
 
-    // Initialise fleet daily totals for the chart
-    var dayTotals = {};
-    allDays.forEach(function(day) {
-      dayTotals[day] = { compliant: 0, notcompliant: 0, noinspection: 0 };
-    });
-
     // Aggregate per vehicle across all days
     var rows = [];
     Object.keys(dm).forEach(function(did) {
@@ -460,6 +476,11 @@ var DVIRApp = (function() {
       var dayStatuses = [];
 
       allDays.forEach(function(day) {
+        // Future days get a special status -- excluded from compliance counts
+        if (futureDays[day]) {
+          dayStatuses.push('future');
+          return;
+        }
         var distKm  = (distByDeviceDay[did] && distByDeviceDay[did][day]) || 0;
         var inspCnt = (inspByDeviceDay[did] && inspByDeviceDay[did][day]) || 0;
         var moved   = distKm > thresholdKm;
@@ -469,9 +490,9 @@ var DVIRApp = (function() {
         totalDistM += distKm;
         totalInsp  += inspCnt;
 
-        if (status === 'compliant')        { compDays++; dayTotals[day].compliant++;    }
-        else if (status === 'notcompliant') { notcDays++; dayTotals[day].notcompliant++; }
-        else                               { noiDays++;  dayTotals[day].noinspection++; }
+        if (status === 'compliant')         compDays++;
+        else if (status === 'notcompliant') notcDays++;
+        else                               noiDays++;
       });
 
       rows.push({
@@ -488,7 +509,7 @@ var DVIRApp = (function() {
       return (b.notcDays - a.notcDays) || a.vehicleName.localeCompare(b.vehicleName);
     });
 
-    // Rebuild day totals from filtered rows only so the chart reflects the selected group
+    // Rebuild day totals from filtered rows only -- skip future days
     var filteredTotals = {};
     allDays.forEach(function(day) {
       filteredTotals[day] = { compliant: 0, notcompliant: 0, noinspection: 0 };
@@ -496,6 +517,7 @@ var DVIRApp = (function() {
     rows.forEach(function(r) {
       r.dayStatuses.forEach(function(status, i) {
         var day = allDays[i];
+        if (status === 'future') return;
         if (status === 'compliant')         filteredTotals[day].compliant++;
         else if (status === 'notcompliant') filteredTotals[day].notcompliant++;
         else                               filteredTotals[day].noinspection++;
@@ -507,7 +529,8 @@ var DVIRApp = (function() {
         day:          day,
         compliant:    filteredTotals[day].compliant,
         notcompliant: filteredTotals[day].notcompliant,
-        noinspection: filteredTotals[day].noinspection
+        noinspection: filteredTotals[day].noinspection,
+        future:       futureDays[day] || false
       };
     });
 
@@ -519,7 +542,7 @@ var DVIRApp = (function() {
     _resetBtn();
   }
 
-  // ── Monthly summary cards ─────────────────────────────────────────────────────
+  // -- Monthly summary cards ----------------------------------------------------
 
   function _updateSummaryMonthly(yyyy, mm) {
     var totalComp = 0, totalNotc = 0, totalNoi = 0;
@@ -537,82 +560,79 @@ var DVIRApp = (function() {
     document.getElementById('pNone').textContent      = totalVD ? Math.round(totalNoi  / totalVD * 100) + '% of vehicle-days \xb7 ' + vCount + ' vehicles' : '';
   }
 
-  // ── Fleet bar chart (pure SVG) ────────────────────────────────────────────────
+  // -- Fleet bar chart (pure SVG) -----------------------------------------------
 
   function _renderChart(yyyy, mm) {
     var container = document.getElementById('chartContainer');
     if (!container || !_mDayTotals.length) return;
 
-    var W      = container.offsetWidth || 600;
-    var H      = 150;
-    var padL   = 28;
-    var padR   = 8;
-    var padT   = 8;
-    var padB   = 20;
-    var chartW = W - padL - padR;
-    var chartH = H - padT - padB;
+    var W       = container.offsetWidth || 600;
+    var H       = 150;
+    var padL    = 28;
+    var padR    = 8;
+    var padT    = 8;
+    var padB    = 20;
+    var chartW  = W - padL - padR;
+    var chartH  = H - padT - padB;
     var numDays = _mDayTotals.length;
-    var barW   = Math.max(2, Math.floor(chartW / numDays) - 1);
-    var gap    = Math.floor(chartW / numDays) - barW;
+    var barW    = Math.max(2, Math.floor(chartW / numDays) - 1);
+    var gap     = Math.floor(chartW / numDays) - barW;
 
-    // Y-axis: scale to total vehicles per day (all three statuses stacked)
-    var maxActive = 0;
+    // Y-axis: scale to max of known (non-future) days only
+    var maxV = 0;
     _mDayTotals.forEach(function(d) {
-      var total = d.compliant + d.notcompliant + d.noinspection;
-      if (total > maxActive) maxActive = total;
+      if (!d.future) {
+        var total = d.compliant + d.notcompliant + d.noinspection;
+        if (total > maxV) maxV = total;
+      }
     });
-    if (maxActive === 0) maxActive = 1;
+    if (maxV === 0) maxV = 1;
 
     var gridLines = [0, 0.25, 0.5, 0.75, 1];
     var monthName = _monthLabel(yyyy + '-' + String(mm).padStart(2, '0'));
 
     var svg = '<svg width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" '
-            + 'role="img" aria-label="Active vehicle compliance by day for ' + _esc(monthName) + '">';
+            + 'role="img" aria-label="Fleet compliance by day for ' + _esc(monthName) + '">';
 
     // Grid lines + y-axis labels
     gridLines.forEach(function(pct) {
       var y     = padT + chartH - Math.round(pct * chartH);
-      var label = Math.round(pct * maxActive);
+      var label = Math.round(pct * maxV);
       svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y
            + '" stroke="#98A4AE" stroke-opacity="0.15" stroke-width="1"/>';
       svg += '<text x="' + (padL - 4) + '" y="' + (y + 4) + '" text-anchor="end" '
            + 'font-size="9" font-family="Arial" fill="#98A4AE">' + label + '</text>';
     });
 
-    // Bars — full stack: compliant (green) + notcompliant (red) + noinspection (blue)
+    // Bars -- full stack for known days, dark blackout for future days
     _mDayTotals.forEach(function(d, i) {
-      var total  = d.compliant + d.notcompliant + d.noinspection;
       var x      = padL + i * (barW + gap);
       var yBase  = padT + chartH;
       var dayNum = i + 1;
       var dowStr = _dowName(d.day);
 
-      var hComp = total > 0 ? Math.round(d.compliant    / maxActive * chartH) : 0;
-      var hNotc = total > 0 ? Math.round(d.notcompliant / maxActive * chartH) : 0;
-      var hNoi  = total > 0 ? Math.round(d.noinspection / maxActive * chartH) : 0;
+      svg += '<g>';
 
-      var pComp = total > 0 ? Math.round(d.compliant    / total * 100) : 0;
-      var pNotc = total > 0 ? Math.round(d.notcompliant / total * 100) : 0;
-      var pNoi  = total > 0 ? Math.round(d.noinspection / total * 100) : 0;
+      if (d.future) {
+        svg += '<title>' + _esc(monthName.split(' ')[0] + ' ' + dayNum + ' (' + dowStr + ') \xb7 Not yet occurred') + '</title>';
+        svg += '<rect x="' + x + '" y="' + padT + '" width="' + barW + '" height="' + chartH + '" fill="#141428"/>';
+      } else {
+        var total = d.compliant + d.notcompliant + d.noinspection;
+        var hComp = total > 0 ? Math.round(d.compliant    / maxV * chartH) : 0;
+        var hNotc = total > 0 ? Math.round(d.notcompliant / maxV * chartH) : 0;
+        var hNoi  = total > 0 ? Math.round(d.noinspection / maxV * chartH) : 0;
+        var pComp = total > 0 ? Math.round(d.compliant    / total * 100) : 0;
+        var pNotc = total > 0 ? Math.round(d.notcompliant / total * 100) : 0;
+        var pNoi  = total > 0 ? Math.round(d.noinspection / total * 100) : 0;
 
-      var tipText = _esc(monthName.split(' ')[0] + ' ' + dayNum + ' (' + dowStr + ')'
-        + ' \xb7 ' + d.compliant    + ' compliant ('      + pComp + '%)'
-        + ' \xb7 ' + d.notcompliant + ' not compliant ('  + pNotc + '%)'
-        + ' \xb7 ' + d.noinspection + ' no insp. needed (' + pNoi  + '%)');
+        svg += '<title>' + _esc(monthName.split(' ')[0] + ' ' + dayNum + ' (' + dowStr + ')'
+          + ' \xb7 ' + d.compliant    + ' compliant ('      + pComp + '%)'
+          + ' \xb7 ' + d.notcompliant + ' not compliant ('  + pNotc + '%)'
+          + ' \xb7 ' + d.noinspection + ' no insp. needed (' + pNoi  + '%)') + '</title>';
 
-      svg += '<g><title>' + tipText + '</title>';
-
-      if (hComp > 0) {
-        svg += '<rect x="' + x + '" y="' + (yBase - hComp) + '" '
-             + 'width="' + barW + '" height="' + hComp + '" fill="#84BD00"/>';
-      }
-      if (hNotc > 0) {
-        svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc) + '" '
-             + 'width="' + barW + '" height="' + hNotc + '" fill="#CF4520"/>';
-      }
-      if (hNoi > 0) {
-        svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc - hNoi) + '" '
-             + 'width="' + barW + '" height="' + hNoi + '" fill="#3D76BF"/>';
+        if (hComp > 0) svg += '<rect x="' + x + '" y="' + (yBase - hComp) + '" width="' + barW + '" height="' + hComp + '" fill="#84BD00"/>';
+        if (hNotc > 0) svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc) + '" width="' + barW + '" height="' + hNotc + '" fill="#CF4520"/>';
+        if (hNoi  > 0) svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc - hNoi) + '" width="' + barW + '" height="' + hNoi + '" fill="#3D76BF"/>';
       }
 
       svg += '</g>';
@@ -634,11 +654,12 @@ var DVIRApp = (function() {
       legendEl.innerHTML =
         '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#84BD00"></div>Compliant</div>'
         + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#CF4520"></div>Not compliant</div>'
-        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#3D76BF"></div>No insp. needed</div>';
+        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#3D76BF"></div>No insp. needed</div>'
+        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#141428;border:1px solid rgba(152,164,174,0.3)"></div>Future</div>';
     }
   }
 
-  // ── Monthly filter ────────────────────────────────────────────────────────────
+  // -- Monthly filter -----------------------------------------------------------
 
   function _mApplyFilter() {
     if (_mActiveFilter === 'all') {
@@ -660,7 +681,7 @@ var DVIRApp = (function() {
     });
   }
 
-  // ── Monthly table ─────────────────────────────────────────────────────────────
+  // -- Monthly table ------------------------------------------------------------
 
   function _renderMonthlyTable() {
     var container  = document.getElementById('tableContainer');
@@ -697,6 +718,7 @@ var DVIRApp = (function() {
       r.dayStatuses.forEach(function(status, i) {
         var fill = status === 'compliant'    ? '#84BD00'
                  : status === 'notcompliant' ? '#CF4520'
+                 : status === 'future'       ? '#141428'
                  :                            '#3D76BF';
         dots += '<circle cx="' + (3 + i * 5) + '" cy="7" r="2.5" fill="' + fill + '"/>';
       });
@@ -736,7 +758,7 @@ var DVIRApp = (function() {
     }
   }
 
-  // ── Daily summary cards ───────────────────────────────────────────────────────
+  // -- Daily summary cards ------------------------------------------------------
 
   function _updateSummary() {
     var c  = _allRows.filter(function(r) { return r.status === 'compliant';    }).length;
@@ -751,7 +773,7 @@ var DVIRApp = (function() {
     document.getElementById('pNone').textContent      = total ? Math.round(ni / total * 100) + '% of fleet' : '';
   }
 
-  // ── Daily filter ──────────────────────────────────────────────────────────────
+  // -- Daily filter -------------------------------------------------------------
 
   function filter(f) {
     _activeFilter = f; _page = 1;
@@ -773,7 +795,7 @@ var DVIRApp = (function() {
     _renderTable();
   }
 
-  // ── Unified filter dispatcher ─────────────────────────────────────────────────
+  // -- Unified filter dispatcher ------------------------------------------------
 
   function filterAny(f) {
     if (_activeTab === 'monthly') {
@@ -785,7 +807,7 @@ var DVIRApp = (function() {
     }
   }
 
-  // ── Daily table ───────────────────────────────────────────────────────────────
+  // -- Daily table --------------------------------------------------------------
 
   function _renderTable() {
     var container  = document.getElementById('tableContainer');
@@ -848,7 +870,7 @@ var DVIRApp = (function() {
     }
   }
 
-  // ── Pagination ────────────────────────────────────────────────────────────────
+  // -- Pagination ---------------------------------------------------------------
 
   function prevPage() {
     if (_activeTab === 'monthly') {
@@ -866,7 +888,7 @@ var DVIRApp = (function() {
     if (_page < Math.ceil(_filteredRows.length / _pageSize)) { _page++; _renderTable(); }
   }
 
-  // ── CSV export ────────────────────────────────────────────────────────────────
+  // -- CSV export ---------------------------------------------------------------
 
   function exportCSV() {
     if (_activeTab === 'monthly') { _exportCSVMonthly(); return; }
@@ -905,7 +927,7 @@ var DVIRApp = (function() {
     document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
-  // ── Shared device map builder ─────────────────────────────────────────────────
+  // -- Shared device map builder ------------------------------------------------
 
   function _buildDeviceMap(devices, gm) {
     var dm = {};
@@ -931,7 +953,7 @@ var DVIRApp = (function() {
     return dm;
   }
 
-  // ── Shared group filter ───────────────────────────────────────────────────────
+  // -- Shared group filter ------------------------------------------------------
 
   function _filterByGroup(rows) {
     if (!_selectedGroupId || !Object.keys(_groupMap).length) return rows;
@@ -945,14 +967,14 @@ var DVIRApp = (function() {
     });
   }
 
-  // ── Shared threshold reader ───────────────────────────────────────────────────
+  // -- Shared threshold reader --------------------------------------------------
 
   function _getThreshold() {
     var el = document.getElementById('distanceThreshold');
     return el ? parseFloat(el.value) || 0 : 2;
   }
 
-  // ── Loading / error states ────────────────────────────────────────────────────
+  // -- Loading / error states ---------------------------------------------------
 
   function _setLoading() {
     document.getElementById('tableContainer').innerHTML =
@@ -988,7 +1010,7 @@ var DVIRApp = (function() {
     _resetBtn();
   }
 
-  // ── Group panel ───────────────────────────────────────────────────────────────
+  // -- Group panel --------------------------------------------------------------
 
   function groupNav(gid) {
     _navGroupId = gid; _selectedGroupId = gid;
@@ -1027,7 +1049,7 @@ var DVIRApp = (function() {
     document.removeEventListener('click', _outsideClickHandler);
   }
 
-  // ── Public API ────────────────────────────────────────────────────────────────
+  // -- Public API ---------------------------------------------------------------
 
   return {
     init: init, run: run, switchTab: switchTab,
