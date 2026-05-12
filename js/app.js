@@ -420,11 +420,28 @@ var DVIRApp = (function() {
       allDays.push(yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(d).padStart(2, '0'));
     }
 
-    // DEBUG — log first 3 trips to console so we can inspect field names and timestamp format
-    console.log('[DVIR monthly debug] total trips returned:', trips.length);
-    console.log('[DVIR monthly debug] total dvirs returned:', dvirs.length);
-    if (trips.length > 0) console.log('[DVIR monthly debug] sample trip object:', JSON.stringify(trips[0]));
-    if (dvirs.length > 0) console.log('[DVIR monthly debug] sample dvir object:', JSON.stringify(dvirs[0]));
+    // DEBUG — log counts and sample objects for each type
+    console.log('[DVIR monthly debug] trips returned:', trips.length, '(hit 25k cap?', trips.length === 25000, ')');
+    console.log('[DVIR monthly debug] dvirs returned:', dvirs.length, '(hit 25k cap?', dvirs.length === 25000, ')');
+    console.log('[DVIR monthly debug] devices returned:', devices.length);
+    console.log('[DVIR monthly debug] groups returned:', groups.length);
+    if (trips.length > 0) console.log('[DVIR monthly debug] sample trip:', JSON.stringify(trips[0]));
+    if (dvirs.length > 0) console.log('[DVIR monthly debug] sample dvir:', JSON.stringify(dvirs[0]));
+
+    // DEBUG — test skip inside search vs as top-level param, and full DVIR count
+    _api.multiCall([
+      ['Get', { typeName: 'Trip',    search: { fromDate: yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z', toDate: yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z', resultsLimit: 25000 }, skip: 25000 }],
+      ['Get', { typeName: 'Trip',    search: { fromDate: yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z', toDate: yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z', resultsLimit: 25000, skip: 25000 } }],
+      ['Get', { typeName: 'DVIRLog', search: { fromDate: yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z', toDate: yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z', resultsLimit: 25000 } }]
+    ], function(r2) {
+      console.log('[DVIR monthly debug] trips page 2 skip=25000 OUTSIDE search:', r2[0] && r2[0].length);
+      console.log('[DVIR monthly debug] trips page 2 skip=25000 INSIDE search:', r2[1] && r2[1].length);
+      console.log('[DVIR monthly debug] dvirs full month total:', r2[2] && r2[2].length, '(hit 25k cap?', r2[2] && r2[2].length === 25000, ')');
+      if (r2[0] && r2[0].length > 0) console.log('[DVIR monthly debug] page2-outside first trip start:', r2[0][0].start);
+      if (r2[1] && r2[1].length > 0) console.log('[DVIR monthly debug] page2-inside first trip start:', r2[1][0].start);
+    }, function(e) {
+      console.log('[DVIR monthly debug] page 2 error:', e && e.message);
+    });
 
     // Bucket trip distance by device + day
     // Trip.start field gives the timestamp; substring(0,10) gives YYYY-MM-DD
