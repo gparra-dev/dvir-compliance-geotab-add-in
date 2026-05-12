@@ -365,7 +365,7 @@ var DVIRApp = (function() {
     var isCurrentMonth = (today.substring(0, 7) === ym);
     var lastKnownDay   = isCurrentMonth ? parseInt(today.substring(8, 10), 10) : lastDay;
 
-    // Scope trips and DVIRLogs to the selected group if one is set
+    // Scope DVIRLogs to selected group via deviceSearch
     var groupSearch = _selectedGroupId ? [{ id: _selectedGroupId }] : null;
     var dvirSearch  = { fromDate: from, toDate: to };
     if (groupSearch) dvirSearch.deviceSearch = { groups: groupSearch };
@@ -380,52 +380,104 @@ var DVIRApp = (function() {
       var devices = r1[1] || [];
       var groups  = r1[2] || [];
 
-      // Step 2 -- paginate trips, scoped to selected group
-      _setLoadingMessage('Fetching trips -- page 1...');
-      _fetchAllTrips(from, to, groupSearch, [], 1, null, null, function(allTrips) {
-        _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
+      // Build device map and resolve group-scoped device IDs (includes subgroups)
+      var gm = {};
+      groups.forEach(function(g) {
+        gm[g.id] = { name: g.name || g.id, parent: g.parent && g.parent.id };
       });
+      var dm = _buildDeviceMap(devices, gm);
+
+      // Get the set of device IDs in the selected group and all descendants
+      var scopedDeviceIds = null;
+      if (_selectedGroupId) {
+        var allowed = _getGroupAndDescendants(_selectedGroupId);
+        scopedDeviceIds = Object.keys(dm).filter(function(did) {
+          var d = dm[did];
+          if (!d.allGroupIds || !d.allGroupIds.length) return false;
+          for (var i = 0; i < d.allGroupIds.length; i++) {
+            if (allowed[d.allGroupIds[i]]) return true;
+          }
+          return false;
+        });
+      }
+
+      // Step 2 -- fetch trips:
+      // <= 100 scoped devices: one multiCall per batch of 100, one Trip call per device (fast, targeted)
+      // > 100 devices or no group: paginated company-wide fetch (unavoidable at scale)
+      var BATCH_LIMIT = 100;
+      if (scopedDeviceIds && scopedDeviceIds.length > 0 && scopedDeviceIds.length <= BATCH_LIMIT) {
+        _setLoadingMessage('Fetching trips for ' + scopedDeviceIds.length + ' vehicles...');
+        _fetchTripsByDevice(from, to, scopedDeviceIds, function(allTrips) {
+          console.log('[trip debug] per-device fetch: ' + allTrips.length + ' trips for ' + scopedDeviceIds.length + ' devices');
+          _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
+        });
+      } else {
+        _setLoadingMessage('Fetching trips -- page 1...');
+        _fetchAllTrips(from, to, [], 1, null, null, function(allTrips) {
+          console.log('[trip debug] paginated fetch: ' + allTrips.length + ' trips total');
+          _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
+        });
+      }
     }, function(e) {
       _showError('API error: ' + (e && e.message ? e.message : String(e)));
     });
   }
 
-  // -- Trip pagination ----------------------------------------------------------
+  // -- Trip fetch: per-device multiCall (for groups <= 100 devices) -------------
+  // Fires one Trip Get per device in a single multiCall batch.
+  // Each device call uses propertySelector to keep payload small.
+  // No pagination needed per device for a single month.
+
+  function _fetchTripsByDevice(from, to, deviceIds, callback) {
+    var calls = deviceIds.map(function(did) {
+      return ['Get', {
+        typeName: 'Trip',
+        search: {
+          fromDate: from,
+          toDate:   to,
+          deviceSearch: { id: did }
+        },
+        resultsLimit: 25000,
+        propertySelector: { fields: ['id', 'device', 'start', 'distance'], isIncluded: true }
+      }];
+    });
+
+    _api.multiCall(calls, function(results) {
+      var allTrips = [];
+      (results || []).forEach(function(page) {
+        if (page) allTrips = allTrips.concat(page);
+      });
+      callback(allTrips);
+    }, function(e) {
+      _showError('API error fetching trips by device: ' + (e && e.message ? e.message : String(e)));
+    });
+  }
+
+  // -- Trip fetch: paginated company-wide (fallback for large groups) -----------
   // Sort-based cursor pagination. PropertySelector keeps payloads small.
   // Stops when a page returns fewer than 25,000 records.
 
-  function _fetchAllTrips(from, to, groupSearch, accumulated, pageNum, offsetStart, offsetId, callback) {
+  function _fetchAllTrips(from, to, accumulated, pageNum, offsetStart, offsetId, callback) {
     var sortObj = { sortBy: 'start' };
     if (offsetStart) {
       sortObj.offset = offsetStart;
       sortObj.lastId = offsetId;
     }
 
-    // TripSearch does not support group filtering -- Geotab silently ignores
-    // deviceSearch.groups on Trip. Fetch all trips for the date range and
-    // rely on client-side _filterByGroup for group scoping.
-    var tripSearch = { fromDate: from, toDate: to };
-    if (groupSearch) tripSearch.deviceSearch = { groups: groupSearch };
-
     _api.call('Get', {
       typeName: 'Trip',
-      search: tripSearch,
+      search: { fromDate: from, toDate: to },
       resultsLimit: 25000,
       propertySelector: { fields: ['id', 'device', 'start', 'distance'], isIncluded: true },
       sort: sortObj
     }, function(page) {
       var combined = accumulated.concat(page || []);
-      if (pageNum === 1) {
-        console.log('[trip debug] search sent:', JSON.stringify(tripSearch));
-        console.log('[trip debug] page 1 count:', (page || []).length, '| hit cap?', (page || []).length === 25000);
-        if (page && page.length > 0) console.log('[trip debug] page 1 sample device ids:', page.slice(0,5).map(function(t){return t.device&&t.device.id;}).join(','));
-      }
       if (!page || page.length < 25000) {
         callback(combined);
       } else {
         var last = page[page.length - 1];
         _setLoadingMessage('Fetching trips -- page ' + (pageNum + 1) + '...');
-        _fetchAllTrips(from, to, groupSearch, combined, pageNum + 1, last.start, last.id, callback);
+        _fetchAllTrips(from, to, combined, pageNum + 1, last.start, last.id, callback);
       }
     }, function(e) {
       _showError('API error fetching trips (page ' + pageNum + '): ' + (e && e.message ? e.message : String(e)));
