@@ -368,7 +368,7 @@ var DVIRApp = (function() {
     // Scope trips and DVIRLogs to the selected group if one is set
     var groupSearch = _selectedGroupId ? [{ id: _selectedGroupId }] : null;
     var dvirSearch  = { fromDate: from, toDate: to };
-    if (groupSearch) dvirSearch.groups = groupSearch;
+    if (groupSearch) dvirSearch.deviceSearch = { groups: groupSearch };
 
     // Step 1 -- fetch DVIRLogs, Devices, Groups in one multiCall
     _api.multiCall([
@@ -402,7 +402,7 @@ var DVIRApp = (function() {
     }
 
     var tripSearch = { fromDate: from, toDate: to };
-    if (groupSearch) tripSearch.groups = groupSearch;
+    if (groupSearch) tripSearch.deviceSearch = { groups: groupSearch };
 
     _api.call('Get', {
       typeName: 'Trip',
