@@ -402,12 +402,13 @@ var DVIRApp = (function() {
       }
 
       // Step 2 -- fetch trips:
-      // <= 100 scoped devices: one multiCall per batch of 100, one Trip call per device (fast, targeted)
-      // > 100 devices or no group: paginated company-wide fetch (unavoidable at scale)
-      var BATCH_LIMIT = 100;
-      if (scopedDeviceIds && scopedDeviceIds.length > 0 && scopedDeviceIds.length <= BATCH_LIMIT) {
+      // If a group is selected: batch per-device multiCalls (100 devices per batch)
+      // This avoids downloading the entire company's trips and discarding most of them.
+      // If no group selected: paginated company-wide fetch.
+      var BATCH_SIZE = 100;
+      if (scopedDeviceIds && scopedDeviceIds.length > 0) {
         _setLoadingMessage('Fetching trips for ' + scopedDeviceIds.length + ' vehicles...');
-        _fetchTripsByDevice(from, to, scopedDeviceIds, function(allTrips) {
+        _fetchTripsByDeviceBatched(from, to, scopedDeviceIds, BATCH_SIZE, [], function(allTrips) {
           console.log('[trip debug] per-device fetch: ' + allTrips.length + ' trips for ' + scopedDeviceIds.length + ' devices');
           _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay, lastKnownDay);
         });
@@ -423,33 +424,42 @@ var DVIRApp = (function() {
     });
   }
 
-  // -- Trip fetch: per-device multiCall (for groups <= 100 devices) -------------
-  // Fires one Trip Get per device in a single multiCall batch.
-  // Each device call uses propertySelector to keep payload small.
-  // No pagination needed per device for a single month.
+  // -- Trip fetch: per-device batched multiCalls ----------------------------
+  // Chunks device IDs into batches of batchSize, fires one multiCall per batch
+  // sequentially, merges results. Handles any fleet size without hitting the
+  // 100-call multiCall limit. Each device uses propertySelector for lean payloads.
 
-  function _fetchTripsByDevice(from, to, deviceIds, callback) {
-    var calls = deviceIds.map(function(did) {
+  function _fetchTripsByDeviceBatched(from, to, deviceIds, batchSize, accumulated, callback) {
+    if (deviceIds.length === 0) { callback(accumulated); return; }
+
+    var batch    = deviceIds.slice(0, batchSize);
+    var remaining = deviceIds.slice(batchSize);
+    var batchNum  = Math.ceil((accumulated.length / batchSize)) + 1; // rough batch counter for message
+
+    var calls = batch.map(function(did) {
       return ['Get', {
         typeName: 'Trip',
-        search: {
-          fromDate: from,
-          toDate:   to,
-          deviceSearch: { id: did }
-        },
+        search: { fromDate: from, toDate: to, deviceSearch: { id: did } },
         resultsLimit: 25000,
         propertySelector: { fields: ['id', 'device', 'start', 'distance'], isIncluded: true }
       }];
     });
 
     _api.multiCall(calls, function(results) {
-      var allTrips = [];
+      var batchTrips = [];
       (results || []).forEach(function(page) {
-        if (page) allTrips = allTrips.concat(page);
+        if (page) batchTrips = batchTrips.concat(page);
       });
-      callback(allTrips);
+      var combined = accumulated.concat(batchTrips);
+
+      if (remaining.length > 0) {
+        _setLoadingMessage('Fetching trips -- batch ' + (batchNum + 1) + ' of ' + Math.ceil(deviceIds.length / batchSize + batchNum - 1) + '...');
+        _fetchTripsByDeviceBatched(from, to, remaining, batchSize, combined, callback);
+      } else {
+        callback(combined);
+      }
     }, function(e) {
-      _showError('API error fetching trips by device: ' + (e && e.message ? e.message : String(e)));
+      _showError('API error fetching trips (batch): ' + (e && e.message ? e.message : String(e)));
     });
   }
 
