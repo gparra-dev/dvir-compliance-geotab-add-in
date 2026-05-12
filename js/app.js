@@ -239,11 +239,12 @@ var DVIRApp = (function() {
     var chartSection = document.getElementById('monthlyChart');
     if (chartSection) chartSection.style.display = tab === 'monthly' ? 'block' : 'none';
 
-    // Show view mode switcher only on monthly tab; reset to vehicle view
+    // Show view mode switcher only on monthly tab; reset to vehicle view on tab switch
     var viewModeBtns = document.getElementById('viewModeBtns');
     if (viewModeBtns) viewModeBtns.style.display = tab === 'monthly' ? '' : 'none';
-    if (tab === 'monthly') { _mViewMode = 'vehicle'; _updateTableHeader(); }
-    else {
+    if (tab === 'monthly') {
+      _mViewMode = 'vehicle'; _updateTableHeader();
+    } else {
       var titleEl = document.getElementById('tableTitle');
       if (titleEl) titleEl.textContent = 'Vehicle Detail';
       var vehicleFilterBtns = document.getElementById('vehicleFilterBtns');
@@ -637,12 +638,18 @@ var DVIRApp = (function() {
       };
     });
 
-    _mAllRows = rows; _mActiveFilter = 'all'; _mPage = 1; _mViewMode = 'vehicle';
+    _mAllRows = rows; _mActiveFilter = 'all'; _mPage = 1;
+    // Preserve view mode if user was already on group summary
+    // (e.g. changed group while viewing group summary)
     _updateSummaryMonthly(yyyy, mm);
     _renderChart(yyyy, mm);
     _mSetFilterBtn('fa');
     _updateTableHeader();
-    _mApplyFilter();
+    if (_mViewMode === 'group') {
+      _renderGroupTable();
+    } else {
+      _mApplyFilter();
+    }
     _resetBtn();
   }
 
