@@ -14,32 +14,31 @@ geotab.addin.dvirCompliance = function(api, state) {
 var DVIRApp = (function() {
   'use strict';
 
-  // ── Shared state ────────────────────────────────────────────────────────────
-  var _api            = null;
-  var _state          = null;
-  var _isMetric       = true;
-  var _groupMap       = {};        // id -> { name, parent, children[] }
+  // ── Shared state ─────────────────────────────────────────────────────────────
+  var _api             = null;
+  var _state           = null;
+  var _isMetric        = true;
+  var _groupMap        = {};
   var _selectedGroupId = null;
   var _navGroupId      = null;
 
-  // ── Daily state ──────────────────────────────────────────────────────────────
+  // ── Daily state ───────────────────────────────────────────────────────────────
   var _allRows      = [];
   var _filteredRows = [];
   var _activeFilter = 'all';
   var _page         = 1;
   var _pageSize     = 50;
 
-  // ── Monthly state ────────────────────────────────────────────────────────────
-  var _activeTab      = 'daily';   // 'daily' | 'monthly'
-  var _mAllRows       = [];        // aggregated monthly rows
-  var _mFilteredRows  = [];
-  var _mActiveFilter  = 'all';
-  var _mPage          = 1;
-  var _mDayTotals     = [];        // [{day, compliant, notcompliant, noinspection}] for chart
+  // ── Monthly state ─────────────────────────────────────────────────────────────
+  var _activeTab     = 'daily';
+  var _mAllRows      = [];
+  var _mFilteredRows = [];
+  var _mActiveFilter = 'all';
+  var _mPage         = 1;
+  var _mDayTotals    = [];
 
-  // ── Helpers ──────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────────
 
-  // Geotab built-in group IDs always match /^Group[A-Z]/
   function _isBuiltinGroup(gid) {
     return /^Group[A-Z]/.test(gid);
   }
@@ -55,20 +54,16 @@ var DVIRApp = (function() {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Returns last day of month as Date — e.g. _lastDayOfMonth(2026, 4) → 30
   function _lastDayOfMonth(yyyy, mm) {
-    // mm is 1-based; new Date(yyyy, mm, 0) gives last day of month mm
     return new Date(yyyy, mm, 0).getDate();
   }
 
-  // Returns short day-of-week name for a date string YYYY-MM-DD
   function _dowName(dateStr) {
     var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    var d = new Date(dateStr + 'T12:00:00Z'); // noon UTC avoids DST edge cases
+    var d = new Date(dateStr + 'T12:00:00Z');
     return days[d.getUTCDay()];
   }
 
-  // Returns month name for display, e.g. '2026-04' → 'April 2026'
   function _monthLabel(ym) {
     var months = ['January','February','March','April','May','June',
                   'July','August','September','October','November','December'];
@@ -81,8 +76,6 @@ var DVIRApp = (function() {
   function init(api, state) {
     _api   = api;
     _state = state;
-
-    // Set today's date on the daily date input
     var t    = new Date();
     var yyyy = t.getUTCFullYear();
     var mm   = String(t.getUTCMonth() + 1).padStart(2, '0');
@@ -90,7 +83,6 @@ var DVIRApp = (function() {
     var dateEl = document.getElementById('reportDate');
     if (dateEl) dateEl.value = yyyy + '-' + mm + '-' + dd;
 
-    // Fetch user prefs and groups in parallel
     _api.multiCall([
       ['Get', { typeName: 'User',  search: {} }],
       ['Get', { typeName: 'Group', search: {} }]
@@ -121,21 +113,18 @@ var DVIRApp = (function() {
     });
 
     var topGroup = null;
-
     if (_groupMap['GroupCompanyId']) {
       var companyChildren = _groupMap['GroupCompanyId'].children || [];
       for (var i = 0; i < companyChildren.length; i++) {
         if (!_isBuiltinGroup(companyChildren[i])) { topGroup = companyChildren[i]; break; }
       }
     }
-
     if (!topGroup && user && user.companyGroups && user.companyGroups.length > 0) {
       for (var j = 0; j < user.companyGroups.length; j++) {
         var ugid = user.companyGroups[j].id;
         if (!_isBuiltinGroup(ugid)) { topGroup = ugid; break; }
       }
     }
-
     if (!topGroup) {
       var roots = Object.keys(_groupMap).filter(function(gid) {
         return !_isBuiltinGroup(gid) && !_groupMap[gid].parent;
@@ -183,11 +172,11 @@ var DVIRApp = (function() {
 
     if (children.length > 0) {
       children.forEach(function(cid) {
-        var cg       = _groupMap[cid];
-        var hasKids  = cg.children && cg.children.filter(function(k) { return !_isBuiltinGroup(k); }).length > 0;
-        var childSel = (cid === _selectedGroupId);
-        html += '<div class="gp-item' + (childSel ? ' gp-selected' : '') + '" onclick="DVIRApp.groupNav(\'' + cid + '\')">'
-              + '<span>' + (childSel ? '&#10003; ' : '') + _esc(cg.name) + '</span>'
+        var cg      = _groupMap[cid];
+        var hasKids = cg.children && cg.children.filter(function(k) { return !_isBuiltinGroup(k); }).length > 0;
+        var cSel    = (cid === _selectedGroupId);
+        html += '<div class="gp-item' + (cSel ? ' gp-selected' : '') + '" onclick="DVIRApp.groupNav(\'' + cid + '\')">'
+              + '<span>' + (cSel ? '&#10003; ' : '') + _esc(cg.name) + '</span>'
               + (hasKids ? '<span class="gp-arrow">&#8250;</span>' : '')
               + '</div>';
       });
@@ -213,13 +202,11 @@ var DVIRApp = (function() {
   function switchTab(tab) {
     _activeTab = tab;
 
-    // Update tab button styles
     var tabDaily   = document.getElementById('tabDaily');
     var tabMonthly = document.getElementById('tabMonthly');
     if (tabDaily)   tabDaily.className   = 'ldc-tab' + (tab === 'daily'   ? ' active' : '');
     if (tabMonthly) tabMonthly.className = 'ldc-tab' + (tab === 'monthly' ? ' active' : '');
 
-    // Swap the date/month input in the header
     var wrapper = document.getElementById('dateControlWrapper');
     if (wrapper) {
       if (tab === 'daily') {
@@ -230,33 +217,28 @@ var DVIRApp = (function() {
         wrapper.innerHTML = '<span class="ldc-date-label">Date</span>'
           + '<input type="date" class="ldc-date-input" id="reportDate" value="' + yyyy + '-' + mm + '-' + dd + '">';
       } else {
-        var tm   = new Date();
-        var ymm  = tm.getUTCFullYear() + '-' + String(tm.getUTCMonth() + 1).padStart(2, '0');
+        var tm  = new Date();
+        var ymm = tm.getUTCFullYear() + '-' + String(tm.getUTCMonth() + 1).padStart(2, '0');
         wrapper.innerHTML = '<span class="ldc-date-label">Month</span>'
           + '<input type="month" class="ldc-date-input" id="reportMonth" value="' + ymm + '">';
       }
     }
 
-    // Update subtitle
     var sub = document.getElementById('ldcSub');
     if (sub) sub.textContent = tab === 'daily' ? 'Daily inspection tracking' : 'Monthly compliance summary';
 
-    // Show/hide the chart section
     var chartSection = document.getElementById('monthlyChart');
     if (chartSection) chartSection.style.display = tab === 'monthly' ? 'block' : 'none';
 
-    // Reset the UI to a clean state — don't auto-run
     _resetToIdle();
   }
 
   function _resetToIdle() {
     ['cCompliant', 'cNot', 'cNone'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.textContent = '-';
+      var el = document.getElementById(id); if (el) el.textContent = '-';
     });
     ['pCompliant', 'pNot', 'pNone'].forEach(function(id) {
-      var el = document.getElementById(id);
-      if (el) el.textContent = '';
+      var el = document.getElementById(id); if (el) el.textContent = '';
     });
     var tc = document.getElementById('tableContainer');
     if (tc) tc.innerHTML = '<div class="ldc-state-box"><p>Run the report to see results</p></div>';
@@ -272,10 +254,8 @@ var DVIRApp = (function() {
   // ── Shared run entry point ────────────────────────────────────────────────────
 
   function run() {
-    // Branch to monthly if that tab is active
     if (_activeTab === 'monthly') { _runMonthly(); return; }
 
-    // ── Daily report ──────────────────────────────────────────────────────────
     var dv = document.getElementById('reportDate') && document.getElementById('reportDate').value;
     if (!dv) { _showError('Please select a date.'); return; }
 
@@ -311,7 +291,6 @@ var DVIRApp = (function() {
 
     var dm = _buildDeviceMap(devices, gm);
 
-    // Sum distance per device (meters)
     var dist = {};
     trips.forEach(function(t) {
       var did = t.device && t.device.id;
@@ -319,7 +298,6 @@ var DVIRApp = (function() {
       dist[did] = (dist[did] || 0) + ((typeof t.distance === 'number') ? t.distance : 0);
     });
 
-    // Count DVIR logs per device
     var insp = {};
     dvirs.forEach(function(l) {
       var did = l.device && l.device.id;
@@ -332,9 +310,7 @@ var DVIRApp = (function() {
     Object.keys(insp).forEach(function(k) { ids[k] = true; });
     Object.keys(dm).forEach(function(k)   { ids[k] = true; });
 
-    var thresholdMi = _getThreshold();
-    var thresholdKm = thresholdMi * 1.60934;
-
+    var thresholdKm = _getThreshold() * 1.60934;
     var rows = [];
     Object.keys(ids).forEach(function(did) {
       var dev     = dm[did] || { name: did, groupName: '', rawGroupId: '', allGroupIds: [] };
@@ -342,37 +318,24 @@ var DVIRApp = (function() {
       var inspCnt = insp[did] || 0;
       var moved   = distM > thresholdKm;
       var status  = !moved ? 'noinspection' : (inspCnt > 0 ? 'compliant' : 'notcompliant');
-
       rows.push({
-        deviceId:    did,
-        vehicleName: dev.name,
-        groupName:   dev.groupName,
-        rawGroupId:  dev.rawGroupId,
-        allGroupIds: dev.allGroupIds || [],
-        status:      status,
-        inspCnt:     inspCnt,
-        moved:       moved,
-        distDisplay: _fmt(distM)
+        deviceId: did, vehicleName: dev.name, groupName: dev.groupName,
+        rawGroupId: dev.rawGroupId, allGroupIds: dev.allGroupIds || [],
+        status: status, inspCnt: inspCnt, moved: moved, distDisplay: _fmt(distM)
       });
     });
 
     rows = _filterByGroup(rows);
-
     var ord = { notcompliant: 0, compliant: 1, noinspection: 2 };
     rows.sort(function(a, b) {
       return (ord[a.status] - ord[b.status]) || a.vehicleName.localeCompare(b.vehicleName);
     });
 
-    _allRows      = rows;
-    _activeFilter = 'all';
-    _page         = 1;
-    _updateSummary();
-    _setFilterBtn('fa');
-    _applyFilter();
-    _resetBtn();
+    _allRows = rows; _activeFilter = 'all'; _page = 1;
+    _updateSummary(); _setFilterBtn('fa'); _applyFilter(); _resetBtn();
   }
 
-  // ── Monthly run & processing ──────────────────────────────────────────────────
+  // ── Monthly run ───────────────────────────────────────────────────────────────
 
   function _runMonthly() {
     var ymEl = document.getElementById('reportMonth');
@@ -381,32 +344,71 @@ var DVIRApp = (function() {
 
     _setLoading();
 
-    var parts = ym.split('-');
-    var yyyy  = parseInt(parts[0], 10);
-    var mm    = parseInt(parts[1], 10);  // 1-based
-    var last  = _lastDayOfMonth(yyyy, mm);
+    var parts   = ym.split('-');
+    var yyyy    = parseInt(parts[0], 10);
+    var mm      = parseInt(parts[1], 10);
+    var lastDay = _lastDayOfMonth(yyyy, mm);
+    var from    = ym + '-01T00:00:00.000Z';
+    var to      = ym + '-' + String(lastDay).padStart(2, '0') + 'T23:59:59.999Z';
 
-    var from = ym + '-01T00:00:00.000Z';
-    var to   = ym + '-' + String(last).padStart(2, '0') + 'T23:59:59.999Z';
-
+    // Step 1 — fetch DVIRLogs, Devices, Groups in one multiCall (all fit under cap)
     _api.multiCall([
-      ['Get', { typeName: 'Trip',    search: { fromDate: from, toDate: to } }],
       ['Get', { typeName: 'DVIRLog', search: { fromDate: from, toDate: to } }],
       ['Get', { typeName: 'Device',  search: {} }],
       ['Get', { typeName: 'Group',   search: {} }]
-    ], function(results) {
-      _processMonthly(results, yyyy, mm, last);
+    ], function(r1) {
+      var dvirs   = r1[0] || [];
+      var devices = r1[1] || [];
+      var groups  = r1[2] || [];
+
+      // Step 2 — paginate trips
+      _setLoadingMessage('Fetching trips\u2014page 1\u2026');
+      _fetchAllTrips(from, to, [], 1, null, null, function(allTrips) {
+        _processMonthly(allTrips, dvirs, devices, groups, yyyy, mm, lastDay);
+      });
     }, function(e) {
       _showError('API error: ' + (e && e.message ? e.message : String(e)));
     });
   }
 
-  function _processMonthly(results, yyyy, mm, lastDay) {
-    var trips   = (results && results[0]) || [];
-    var dvirs   = (results && results[1]) || [];
-    var devices = (results && results[2]) || [];
-    var groups  = (results && results[3]) || [];
+  // ── Trip pagination ───────────────────────────────────────────────────────────
+  // Recursively fetches all trips for the month using sort-based cursor pagination.
+  // PropertySelector limits each record to only the fields we need, keeping
+  // payloads small. Continues until a page returns fewer than 25,000 records.
 
+  function _fetchAllTrips(from, to, accumulated, pageNum, offsetStart, offsetId, callback) {
+    var sortObj = { sortBy: 'start' };
+    if (offsetStart) {
+      sortObj.offset = offsetStart;
+      sortObj.lastId = offsetId;
+    }
+
+    _api.call('Get', {
+      typeName: 'Trip',
+      search: { fromDate: from, toDate: to },
+      resultsLimit: 25000,
+      propertySelector: { fields: ['id', 'device', 'start', 'distance'], isIncluded: true },
+      sort: sortObj
+    }, function(page) {
+      var combined = accumulated.concat(page || []);
+
+      if (!page || page.length < 25000) {
+        // Done — all pages retrieved
+        callback(combined);
+      } else {
+        // More pages — advance cursor to last record of this page
+        var last = page[page.length - 1];
+        _setLoadingMessage('Fetching trips\u2014page ' + (pageNum + 1) + '\u2026');
+        _fetchAllTrips(from, to, combined, pageNum + 1, last.start, last.id, callback);
+      }
+    }, function(e) {
+      _showError('API error fetching trips (page ' + pageNum + '): ' + (e && e.message ? e.message : String(e)));
+    });
+  }
+
+  // ── Monthly processing ────────────────────────────────────────────────────────
+
+  function _processMonthly(trips, dvirs, devices, groups, yyyy, mm, lastDay) {
     var gm = {};
     groups.forEach(function(g) {
       gm[g.id] = { name: g.name || g.id, parent: g.parent && g.parent.id };
@@ -414,59 +416,14 @@ var DVIRApp = (function() {
 
     var dm = _buildDeviceMap(devices, gm);
 
-    // Build all calendar day strings for this month: ['YYYY-MM-01', ..., 'YYYY-MM-DD']
+    // Build all calendar day strings for the month
     var allDays = [];
     for (var d = 1; d <= lastDay; d++) {
       allDays.push(yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(d).padStart(2, '0'));
     }
 
-    // DEBUG — log counts and sample objects for each type
-    console.log('[DVIR monthly debug] trips returned:', trips.length, '(hit 25k cap?', trips.length === 25000, ')');
-    console.log('[DVIR monthly debug] dvirs returned:', dvirs.length, '(hit 25k cap?', dvirs.length === 25000, ')');
-    console.log('[DVIR monthly debug] devices returned:', devices.length);
-    console.log('[DVIR monthly debug] groups returned:', groups.length);
-    if (trips.length > 0) console.log('[DVIR monthly debug] sample trip:', JSON.stringify(trips[0]));
-    if (dvirs.length > 0) console.log('[DVIR monthly debug] sample dvir:', JSON.stringify(dvirs[0]));
-
-    // DEBUG — test sort-based pagination + PropertySelector on Trip
-    var tripFrom = yyyy + '-' + String(mm).padStart(2,'0') + '-01T00:00:00.000Z';
-    var tripTo   = yyyy + '-' + String(mm).padStart(2,'0') + '-' + String(lastDay).padStart(2,'0') + 'T23:59:59.999Z';
-    var propSel  = { fields: ['id', 'device', 'start', 'distance'], isIncluded: true };
-    _api.call('Get', {
-      typeName: 'Trip',
-      search: { fromDate: tripFrom, toDate: tripTo },
-      resultsLimit: 25000,
-      propertySelector: propSel,
-      sort: { sortBy: 'start' }
-    }, function(page1) {
-      console.log('[DVIR sort debug] page 1 count:', page1 && page1.length);
-      if (!page1 || !page1.length) return;
-      var last = page1[page1.length - 1];
-      console.log('[DVIR sort debug] page 1 first start:', page1[0].start, 'id:', page1[0].id);
-      console.log('[DVIR sort debug] page 1 last  start:', last.start, 'id:', last.id);
-      console.log('[DVIR sort debug] page 1 sample keys:', Object.keys(page1[0]).join(','));
-      _api.call('Get', {
-        typeName: 'Trip',
-        search: { fromDate: tripFrom, toDate: tripTo },
-        resultsLimit: 25000,
-        propertySelector: propSel,
-        sort: { sortBy: 'start', offset: last.start, lastId: last.id }
-      }, function(page2) {
-        console.log('[DVIR sort debug] page 2 count:', page2 && page2.length);
-        if (page2 && page2.length > 0) {
-          console.log('[DVIR sort debug] page 2 first start:', page2[0].start, 'id:', page2[0].id);
-          console.log('[DVIR sort debug] page 2 last  start:', page2[page2.length-1].start);
-          console.log('[DVIR sort debug] overlap? p1 last id === p2 first id:', last.id === page2[0].id);
-          console.log('[DVIR sort debug] page 2 hit cap?', page2.length === 25000);
-        } else {
-          console.log('[DVIR sort debug] page 2 empty — all data fits on one page');
-        }
-      }, function(e) { console.log('[DVIR sort debug] page 2 error:', e && e.message); });
-    }, function(e) { console.log('[DVIR sort debug] page 1 error:', e && e.message); });
-
-    // Bucket trip distance by device + day
-    // Trip.start field gives the timestamp; substring(0,10) gives YYYY-MM-DD
-    var distByDeviceDay = {};  // did -> { dayStr -> distanceKm }
+    // Bucket trip distance by device + day using trip.start substring
+    var distByDeviceDay = {};
     trips.forEach(function(t) {
       var did = t.device && t.device.id;
       if (!did || !t.start) return;
@@ -477,8 +434,7 @@ var DVIRApp = (function() {
     });
 
     // Bucket DVIR inspections by device + day
-    // DVIRLog.dateTime gives the timestamp
-    var inspByDeviceDay = {};  // did -> { dayStr -> count }
+    var inspByDeviceDay = {};
     dvirs.forEach(function(l) {
       var did = l.device && l.device.id;
       if (!did || !l.dateTime) return;
@@ -487,11 +443,9 @@ var DVIRApp = (function() {
       inspByDeviceDay[did][dayStr] = (inspByDeviceDay[did][dayStr] || 0) + 1;
     });
 
-    var thresholdMi = _getThreshold();
-    var thresholdKm = thresholdMi * 1.60934;
+    var thresholdKm = _getThreshold() * 1.60934;
 
-    // Fleet-level daily totals for the chart
-    // Initialise one entry per day
+    // Initialise fleet daily totals for the chart
     var dayTotals = {};
     allDays.forEach(function(day) {
       dayTotals[day] = { compliant: 0, notcompliant: 0, noinspection: 0 };
@@ -500,13 +454,10 @@ var DVIRApp = (function() {
     // Aggregate per vehicle across all days
     var rows = [];
     Object.keys(dm).forEach(function(did) {
-      var dev        = dm[did];
-      var compDays   = 0;
-      var notcDays   = 0;
-      var noiDays    = 0;
-      var totalInsp  = 0;
-      var totalDistM = 0;
-      var dayStatuses = [];  // one status string per calendar day, in order
+      var dev         = dm[did];
+      var compDays    = 0, notcDays = 0, noiDays = 0;
+      var totalInsp   = 0, totalDistM = 0;
+      var dayStatuses = [];
 
       allDays.forEach(function(day) {
         var distKm  = (distByDeviceDay[did] && distByDeviceDay[did][day]) || 0;
@@ -518,49 +469,35 @@ var DVIRApp = (function() {
         totalDistM += distKm;
         totalInsp  += inspCnt;
 
-        if (status === 'compliant')     { compDays++;  dayTotals[day].compliant++;     }
-        else if (status === 'notcompliant') { notcDays++; dayTotals[day].notcompliant++;  }
-        else                            { noiDays++;   dayTotals[day].noinspection++;  }
+        if (status === 'compliant')        { compDays++; dayTotals[day].compliant++;    }
+        else if (status === 'notcompliant') { notcDays++; dayTotals[day].notcompliant++; }
+        else                               { noiDays++;  dayTotals[day].noinspection++; }
       });
 
       rows.push({
-        deviceId:    did,
-        vehicleName: dev.name,
-        groupName:   dev.groupName,
-        rawGroupId:  dev.rawGroupId,
-        allGroupIds: dev.allGroupIds || [],
-        compDays:    compDays,
-        notcDays:    notcDays,
-        noiDays:     noiDays,
-        totalInsp:   totalInsp,
-        totalDistM:  totalDistM,
-        dayStatuses: dayStatuses,
-        numDays:     allDays.length
+        deviceId: did, vehicleName: dev.name, groupName: dev.groupName,
+        rawGroupId: dev.rawGroupId, allGroupIds: dev.allGroupIds || [],
+        compDays: compDays, notcDays: notcDays, noiDays: noiDays,
+        totalInsp: totalInsp, totalDistM: totalDistM,
+        dayStatuses: dayStatuses, numDays: allDays.length
       });
     });
 
-    // Apply group filter
     rows = _filterByGroup(rows);
-
-    // Sort: most not-compliant days first, then alphabetical
     rows.sort(function(a, b) {
       return (b.notcDays - a.notcDays) || a.vehicleName.localeCompare(b.vehicleName);
     });
 
-    // Store fleet day totals as ordered array for the chart
     _mDayTotals = allDays.map(function(day) {
       return {
-        day:          day,
+        day: day,
         compliant:    dayTotals[day].compliant,
         notcompliant: dayTotals[day].notcompliant,
         noinspection: dayTotals[day].noinspection
       };
     });
 
-    _mAllRows      = rows;
-    _mActiveFilter = 'all';
-    _mPage         = 1;
-
+    _mAllRows = rows; _mActiveFilter = 'all'; _mPage = 1;
     _updateSummaryMonthly(yyyy, mm);
     _renderChart(yyyy, mm);
     _mSetFilterBtn('fa');
@@ -573,28 +510,17 @@ var DVIRApp = (function() {
   function _updateSummaryMonthly(yyyy, mm) {
     var totalComp = 0, totalNotc = 0, totalNoi = 0;
     _mAllRows.forEach(function(r) {
-      totalComp += r.compDays;
-      totalNotc += r.notcDays;
-      totalNoi  += r.noiDays;
+      totalComp += r.compDays; totalNotc += r.notcDays; totalNoi += r.noiDays;
     });
-
-    var totalVehicleDays = totalComp + totalNotc + totalNoi;
-    var vCount           = _mAllRows.length;
-    var label            = _monthLabel(yyyy + '-' + String(mm).padStart(2, '0'));
+    var totalVD = totalComp + totalNotc + totalNoi;
+    var vCount  = _mAllRows.length;
 
     document.getElementById('cCompliant').textContent = totalComp;
     document.getElementById('cNot').textContent       = totalNotc;
     document.getElementById('cNone').textContent      = totalNoi;
-
-    document.getElementById('pCompliant').textContent = totalVehicleDays
-      ? Math.round(totalComp / totalVehicleDays * 100) + '% of vehicle-days · ' + vCount + ' vehicles'
-      : '';
-    document.getElementById('pNot').textContent = totalVehicleDays
-      ? Math.round(totalNotc / totalVehicleDays * 100) + '% of vehicle-days · ' + vCount + ' vehicles'
-      : '';
-    document.getElementById('pNone').textContent = totalVehicleDays
-      ? Math.round(totalNoi  / totalVehicleDays * 100) + '% of vehicle-days · ' + vCount + ' vehicles'
-      : '';
+    document.getElementById('pCompliant').textContent = totalVD ? Math.round(totalComp / totalVD * 100) + '% of vehicle-days \xb7 ' + vCount + ' vehicles' : '';
+    document.getElementById('pNot').textContent       = totalVD ? Math.round(totalNotc / totalVD * 100) + '% of vehicle-days \xb7 ' + vCount + ' vehicles' : '';
+    document.getElementById('pNone').textContent      = totalVD ? Math.round(totalNoi  / totalVD * 100) + '% of vehicle-days \xb7 ' + vCount + ' vehicles' : '';
   }
 
   // ── Fleet bar chart (pure SVG) ────────────────────────────────────────────────
@@ -603,63 +529,61 @@ var DVIRApp = (function() {
     var container = document.getElementById('chartContainer');
     if (!container || !_mDayTotals.length) return;
 
-    var W         = container.offsetWidth || 600;
-    var H         = 150;
-    var padL      = 28;   // left axis
-    var padR      = 8;
-    var padT      = 8;
-    var padB      = 20;   // x-axis labels
-    var chartW    = W - padL - padR;
-    var chartH    = H - padT - padB;
-    var numDays   = _mDayTotals.length;
-    var barW      = Math.max(2, Math.floor(chartW / numDays) - 1);
-    var gap       = Math.floor(chartW / numDays) - barW;
+    var W      = container.offsetWidth || 600;
+    var H      = 150;
+    var padL   = 28;
+    var padR   = 8;
+    var padT   = 8;
+    var padB   = 20;
+    var chartW = W - padL - padR;
+    var chartH = H - padT - padB;
+    var numDays = _mDayTotals.length;
+    var barW   = Math.max(2, Math.floor(chartW / numDays) - 1);
+    var gap    = Math.floor(chartW / numDays) - barW;
 
-    // Max vehicles per day (for y-scale)
-    var maxV = 0;
+    // Y-axis: scale to active vehicles only (compliant + notcompliant)
+    // This prevents the no-inspection-needed count from drowning out the signal
+    var maxActive = 0;
     _mDayTotals.forEach(function(d) {
-      var total = d.compliant + d.notcompliant + d.noinspection;
-      if (total > maxV) maxV = total;
+      var active = d.compliant + d.notcompliant;
+      if (active > maxActive) maxActive = active;
     });
-    if (maxV === 0) maxV = 1;
+    if (maxActive === 0) maxActive = 1;
 
-    // Y-axis grid lines at 0, 25%, 50%, 75%, 100%
     var gridLines = [0, 0.25, 0.5, 0.75, 1];
+    var monthName = _monthLabel(yyyy + '-' + String(mm).padStart(2, '0'));
 
     var svg = '<svg width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg" '
-            + 'role="img" aria-label="Stacked bar chart of daily fleet DVIR compliance">';
+            + 'role="img" aria-label="Active vehicle compliance by day for ' + _esc(monthName) + '">';
 
     // Grid lines + y-axis labels
     gridLines.forEach(function(pct) {
-      var y = padT + chartH - Math.round(pct * chartH);
-      var label = Math.round(pct * maxV);
-      svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y + '" '
-           + 'stroke="#98A4AE" stroke-opacity="0.15" stroke-width="1"/>';
-      svg += '<text x="' + (padL - 4) + '" y="' + (y + 4) + '" '
-           + 'text-anchor="end" font-size="9" font-family="Arial" fill="#98A4AE">' + label + '</text>';
+      var y     = padT + chartH - Math.round(pct * chartH);
+      var label = Math.round(pct * maxActive);
+      svg += '<line x1="' + padL + '" y1="' + y + '" x2="' + (W - padR) + '" y2="' + y
+           + '" stroke="#98A4AE" stroke-opacity="0.15" stroke-width="1"/>';
+      svg += '<text x="' + (padL - 4) + '" y="' + (y + 4) + '" text-anchor="end" '
+           + 'font-size="9" font-family="Arial" fill="#98A4AE">' + label + '</text>';
     });
 
-    // Bars
+    // Bars — only compliant (green) + notcompliant (red); no-inspection days show no bar
     _mDayTotals.forEach(function(d, i) {
-      var total    = d.compliant + d.notcompliant + d.noinspection;
-      var x        = padL + i * (barW + gap);
-      var yBase    = padT + chartH;
-
-      // Stack order bottom to top: compliant (green), notcompliant (red), noinspection (blue)
-      var hComp = total > 0 ? Math.round(d.compliant    / maxV * chartH) : 0;
-      var hNotc = total > 0 ? Math.round(d.notcompliant / maxV * chartH) : 0;
-      var hNoi  = total > 0 ? Math.round(d.noinspection / maxV * chartH) : 0;
-
-      // Tooltip text with percentages
-      var pComp = total > 0 ? Math.round(d.compliant    / total * 100) : 0;
-      var pNotc = total > 0 ? Math.round(d.notcompliant / total * 100) : 0;
-      var pNoi  = total > 0 ? Math.round(d.noinspection / total * 100) : 0;
+      var active = d.compliant + d.notcompliant;
+      var x      = padL + i * (barW + gap);
+      var yBase  = padT + chartH;
       var dayNum = i + 1;
       var dowStr = _dowName(d.day);
-      var tipText = _esc('Apr ' + dayNum + ' (' + dowStr + ')'
-        + ' · ' + d.compliant    + ' compliant ('    + pComp + '%)'
-        + ' · ' + d.notcompliant + ' not compliant (' + pNotc + '%)'
-        + ' · ' + d.noinspection + ' no insp. needed (' + pNoi  + '%)');
+
+      var hComp = active > 0 ? Math.round(d.compliant    / maxActive * chartH) : 0;
+      var hNotc = active > 0 ? Math.round(d.notcompliant / maxActive * chartH) : 0;
+
+      var pComp = active > 0 ? Math.round(d.compliant    / active * 100) : 0;
+      var pNotc = active > 0 ? Math.round(d.notcompliant / active * 100) : 0;
+
+      var tipText = _esc(monthName.split(' ')[0] + ' ' + dayNum + ' (' + dowStr + ')'
+        + ' \xb7 ' + d.compliant    + ' compliant ('     + pComp + '%)'
+        + ' \xb7 ' + d.notcompliant + ' not compliant (' + pNotc + '%)'
+        + ' \xb7 ' + d.noinspection + ' no insp. needed');
 
       svg += '<g><title>' + tipText + '</title>';
 
@@ -671,14 +595,15 @@ var DVIRApp = (function() {
         svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc) + '" '
              + 'width="' + barW + '" height="' + hNotc + '" fill="#CF4520"/>';
       }
-      if (hNoi > 0) {
-        svg += '<rect x="' + x + '" y="' + (yBase - hComp - hNotc - hNoi) + '" '
-             + 'width="' + barW + '" height="' + hNoi + '" fill="#3D76BF"/>';
+
+      // Show a faint background bar on days with no active vehicles (weekends etc.)
+      if (active === 0) {
+        svg += '<rect x="' + x + '" y="' + padT + '" '
+             + 'width="' + barW + '" height="' + chartH + '" fill="#3D76BF" fill-opacity="0.15"/>';
       }
 
       svg += '</g>';
 
-      // X-axis labels: day 1, every 7th, and last day
       if (dayNum === 1 || dayNum % 7 === 0 || dayNum === numDays) {
         svg += '<text x="' + (x + barW / 2) + '" y="' + (H - 4) + '" '
              + 'text-anchor="middle" font-size="9" font-family="Arial" fill="#98A4AE">' + dayNum + '</text>';
@@ -687,6 +612,19 @@ var DVIRApp = (function() {
 
     svg += '</svg>';
     container.innerHTML = svg;
+
+    // Update chart title to reflect active-only scale
+    var titleEl = document.getElementById('chartTitle');
+    if (titleEl) titleEl.textContent = 'Active vehicle compliance by day — ' + monthName;
+
+    // Update legend to reflect active-only chart (remove no-insp. needed swatch)
+    var legendEl = document.getElementById('chartLegend');
+    if (legendEl) {
+      legendEl.innerHTML =
+        '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#84BD00"></div>Compliant</div>'
+        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#CF4520"></div>Not compliant</div>'
+        + '<div class="ldc-chart-legend-item"><div class="ldc-chart-legend-swatch" style="background:#3D76BF;opacity:0.35"></div>No vehicles moved</div>';
+    }
   }
 
   // ── Monthly filter ────────────────────────────────────────────────────────────
@@ -698,7 +636,7 @@ var DVIRApp = (function() {
       _mFilteredRows = _mAllRows.filter(function(r) { return r.compDays > 0; });
     } else if (_mActiveFilter === 'notcompliant') {
       _mFilteredRows = _mAllRows.filter(function(r) { return r.notcDays > 0; });
-    } else if (_mActiveFilter === 'noinspection') {
+    } else {
       _mFilteredRows = _mAllRows.filter(function(r) { return r.noiDays > 0; });
     }
     _renderMonthlyTable();
@@ -743,25 +681,18 @@ var DVIRApp = (function() {
       + '</tr></thead><tbody>';
 
     pageRows.forEach(function(r) {
-      var numDays = r.numDays;
-      // Dot strip: one circle per calendar day
-      // Width: 3 (left pad) + numDays * 5 (spacing) + 2 (right pad)
-      var stripW = 3 + numDays * 5 + 2;
-      var dots = '';
+      var stripW = 3 + r.numDays * 5 + 2;
+      var dots   = '';
       r.dayStatuses.forEach(function(status, i) {
-        var fill = status === 'compliant'     ? '#84BD00'
-                 : status === 'notcompliant'  ? '#CF4520'
-                 :                             '#3D76BF';
-        var cx = 3 + i * 5;
-        dots += '<circle cx="' + cx + '" cy="7" r="2.5" fill="' + fill + '"/>';
+        var fill = status === 'compliant'    ? '#84BD00'
+                 : status === 'notcompliant' ? '#CF4520'
+                 :                            '#3D76BF';
+        dots += '<circle cx="' + (3 + i * 5) + '" cy="7" r="2.5" fill="' + fill + '"/>';
       });
-      var stripSvg = '<svg width="' + stripW + '" height="14" style="display:block" aria-hidden="true">'
-                   + dots + '</svg>';
+      var stripSvg = '<svg width="' + stripW + '" height="14" style="display:block" aria-hidden="true">' + dots + '</svg>';
 
-      // Compliance day colours
-      var compColor = r.compDays > 0  ? '#84BD00' : '#98A4AE';
-      var notcColor = r.notcDays > 0  ? '#CF4520' : '#98A4AE';
-      var noiColor  = '#98A4AE';
+      var compColor = r.compDays  > 0 ? '#84BD00' : '#98A4AE';
+      var notcColor = r.notcDays  > 0 ? '#CF4520' : '#98A4AE';
       var inspColor = r.totalInsp > 0 ? '#009CDE' : '#98A4AE';
 
       html += '<tr>'
@@ -770,7 +701,7 @@ var DVIRApp = (function() {
         + '<td>' + stripSvg + '</td>'
         + '<td style="text-align:center;color:' + compColor + ';font-weight:700;font-size:13px">' + r.compDays + '</td>'
         + '<td style="text-align:center;color:' + notcColor + ';font-weight:700;font-size:13px">' + r.notcDays + '</td>'
-        + '<td style="text-align:center;color:' + noiColor  + ';font-weight:700;font-size:13px">' + r.noiDays  + '</td>'
+        + '<td style="text-align:center;color:#98A4AE;font-weight:700;font-size:13px">' + r.noiDays + '</td>'
         + '<td style="text-align:center;color:' + inspColor + ';font-weight:700;font-size:13px">' + r.totalInsp + '</td>'
         + '<td style="text-align:right;color:#98A4AE;font-size:12px">' + _esc(_fmt(r.totalDistM)) + '</td>'
         + '</tr>';
@@ -782,13 +713,13 @@ var DVIRApp = (function() {
     var fl = _mActiveFilter !== 'all' ? ' (filtered)' : '';
     document.getElementById('tableMeta').textContent =
       _mFilteredRows.length + ' vehicle' + (_mFilteredRows.length !== 1 ? 's' : '')
-      + fl + ' — ' + _mAllRows.length + ' total';
+      + fl + ' \u2014 ' + _mAllRows.length + ' total';
 
     if (pagination) {
       pagination.style.display = 'flex';
       document.getElementById('pageInfo').textContent =
         'Page ' + _mPage + ' of ' + Math.max(1, totalPages)
-        + ' — ' + (start + 1) + '–' + end + ' of ' + _mFilteredRows.length;
+        + ' \u2014 ' + (start + 1) + '\u2013' + end + ' of ' + _mFilteredRows.length;
       document.getElementById('prevBtn').disabled = _mPage <= 1;
       document.getElementById('nextBtn').disabled = _mPage >= totalPages;
     }
@@ -812,11 +743,9 @@ var DVIRApp = (function() {
   // ── Daily filter ──────────────────────────────────────────────────────────────
 
   function filter(f) {
-    _activeFilter = f;
-    _page = 1;
+    _activeFilter = f; _page = 1;
     var m = { all: 'fa', compliant: 'fc', notcompliant: 'fn', noinspection: 'fni' };
-    _setFilterBtn(m[f]);
-    _applyFilter();
+    _setFilterBtn(m[f]); _applyFilter();
   }
 
   function _setFilterBtn(activeId) {
@@ -834,15 +763,12 @@ var DVIRApp = (function() {
   }
 
   // ── Unified filter dispatcher ─────────────────────────────────────────────────
-  // Called by filter buttons in index.html — routes to daily or monthly
 
   function filterAny(f) {
     if (_activeTab === 'monthly') {
-      _mActiveFilter = f;
-      _mPage = 1;
+      _mActiveFilter = f; _mPage = 1;
       var mm = { all: 'fa', compliant: 'fc', notcompliant: 'fn', noinspection: 'fni' };
-      _mSetFilterBtn(mm[f]);
-      _mApplyFilter();
+      _mSetFilterBtn(mm[f]); _mApplyFilter();
     } else {
       filter(f);
     }
@@ -933,20 +859,15 @@ var DVIRApp = (function() {
 
   function exportCSV() {
     if (_activeTab === 'monthly') { _exportCSVMonthly(); return; }
-
     if (!_allRows.length) return;
     var dv    = document.getElementById('reportDate') && document.getElementById('reportDate').value;
     var lines = ['Date,Vehicle Name,Group,Compliance Status,Inspected,Inspections Submitted,Vehicle Moved,Distance'];
     _allRows.forEach(function(r) {
       var lb = r.status === 'compliant' ? 'Compliant'
-             : r.status === 'notcompliant' ? 'Not Compliant'
-             : 'No Inspection Needed';
-      lines.push([
-        dv, r.vehicleName, r.groupName || '', lb,
-        r.inspCnt > 0 ? 'Inspected' : 'Not Inspected',
-        r.inspCnt,
-        r.moved ? 'Vehicle Moved' : 'Vehicle Did Not Move',
-        r.distDisplay
+             : r.status === 'notcompliant' ? 'Not Compliant' : 'No Inspection Needed';
+      lines.push([dv, r.vehicleName, r.groupName || '', lb,
+        r.inspCnt > 0 ? 'Inspected' : 'Not Inspected', r.inspCnt,
+        r.moved ? 'Vehicle Moved' : 'Vehicle Did Not Move', r.distDisplay
       ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
     });
     _downloadCSV(lines, 'lytx-dvir-compliance-' + dv + '.csv');
@@ -957,10 +878,8 @@ var DVIRApp = (function() {
     var ym    = document.getElementById('reportMonth') && document.getElementById('reportMonth').value;
     var lines = ['Month,Vehicle Name,Group,Compliant Days,Not Compliant Days,No Inspection Days,Inspections Submitted,Total Distance'];
     _mAllRows.forEach(function(r) {
-      lines.push([
-        ym, r.vehicleName, r.groupName || '',
-        r.compDays, r.notcDays, r.noiDays,
-        r.totalInsp, _fmt(r.totalDistM)
+      lines.push([ym, r.vehicleName, r.groupName || '',
+        r.compDays, r.notcDays, r.noiDays, r.totalInsp, _fmt(r.totalDistM)
       ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
     });
     _downloadCSV(lines, 'lytx-dvir-compliance-monthly-' + ym + '.csv');
@@ -970,33 +889,22 @@ var DVIRApp = (function() {
     var blob = new Blob([lines.join(String.fromCharCode(10))], { type: 'text/csv' });
     var url  = URL.createObjectURL(blob);
     var a    = document.createElement('a');
-    a.href   = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
   }
 
   // ── Shared device map builder ─────────────────────────────────────────────────
-  // Extracted from _process() so both daily and monthly use identical filtering
 
   function _buildDeviceMap(devices, gm) {
     var dm = {};
     devices.forEach(function(d) {
-      // Skip archived/deactivated
       if (d.activeTo && new Date(d.activeTo) < new Date()) return;
-
-      // Skip non-vehicles (trailers, untagged assets)
       var isVehicle = false;
-      if (d.groups) {
-        d.groups.forEach(function(dg) { if (dg.id === 'GroupVehicleId') isVehicle = true; });
-      }
+      if (d.groups) d.groups.forEach(function(dg) { if (dg.id === 'GroupVehicleId') isVehicle = true; });
       if (!isVehicle) return;
 
-      // Pick first non-builtin group for display
-      var chosen = null;
-      var gn     = '';
+      var chosen = null, gn = '';
       if (d.groups) {
         for (var i = 0; i < d.groups.length; i++) {
           if (!_isBuiltinGroup(d.groups[i].id)) { chosen = d.groups[i].id; break; }
@@ -1005,11 +913,7 @@ var DVIRApp = (function() {
       if (chosen) gn = (gm[chosen] && gm[chosen].name) || chosen;
 
       var allGroupIds = [];
-      if (d.groups) {
-        d.groups.forEach(function(dg) {
-          if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id);
-        });
-      }
+      if (d.groups) d.groups.forEach(function(dg) { if (!_isBuiltinGroup(dg.id)) allGroupIds.push(dg.id); });
 
       dm[d.id] = { name: d.name || d.id, groupName: gn, rawGroupId: chosen || '', allGroupIds: allGroupIds };
     });
@@ -1041,7 +945,7 @@ var DVIRApp = (function() {
 
   function _setLoading() {
     document.getElementById('tableContainer').innerHTML =
-      '<div class="ldc-state-box"><p>Loading data...</p></div>';
+      '<div class="ldc-state-box"><p>Loading data\u2026</p></div>';
     var pag = document.getElementById('pagination');
     if (pag) pag.style.display = 'none';
     var cc = document.getElementById('chartContainer');
@@ -1052,15 +956,19 @@ var DVIRApp = (function() {
     ['pCompliant', 'pNot', 'pNone'].forEach(function(id) {
       document.getElementById(id).textContent = '';
     });
-    document.getElementById('tableMeta').textContent = 'Loading...';
+    document.getElementById('tableMeta').textContent = 'Loading\u2026';
     document.getElementById('runBtn').disabled = true;
+  }
+
+  function _setLoadingMessage(msg) {
+    var tc = document.getElementById('tableContainer');
+    if (tc) tc.innerHTML = '<div class="ldc-state-box"><p>' + _esc(msg) + '</p></div>';
   }
 
   function _resetBtn() {
     var btn = document.getElementById('runBtn');
     if (!btn) return;
-    btn.disabled    = false;
-    btn.textContent = 'Run Report';
+    btn.disabled = false; btn.textContent = 'Run Report';
   }
 
   function _showError(msg) {
@@ -1072,20 +980,16 @@ var DVIRApp = (function() {
   // ── Group panel ───────────────────────────────────────────────────────────────
 
   function groupNav(gid) {
-    _navGroupId      = gid;
-    _selectedGroupId = gid;
-    var g   = _groupMap[gid];
+    _navGroupId = gid; _selectedGroupId = gid;
     var lbl = document.getElementById('groupFilterLabel');
-    if (lbl) lbl.textContent = g ? g.name : 'All Groups';
+    if (lbl) lbl.textContent = (_groupMap[gid] && _groupMap[gid].name) || 'All Groups';
     _renderGroupPanel();
   }
 
   function groupSelect(gid) {
-    _selectedGroupId = gid;
-    _navGroupId      = gid;
-    var g   = _groupMap[gid];
+    _selectedGroupId = gid; _navGroupId = gid;
     var lbl = document.getElementById('groupFilterLabel');
-    if (lbl) lbl.textContent = g ? g.name : 'All Groups';
+    if (lbl) lbl.textContent = (_groupMap[gid] && _groupMap[gid].name) || 'All Groups';
     _renderGroupPanel();
   }
 
@@ -1096,9 +1000,7 @@ var DVIRApp = (function() {
       _navGroupId = _selectedGroupId;
       _renderGroupPanel();
       panel.style.display = 'block';
-      setTimeout(function() {
-        document.addEventListener('click', _outsideClickHandler);
-      }, 0);
+      setTimeout(function() { document.addEventListener('click', _outsideClickHandler); }, 0);
     } else {
       panel.style.display = 'none';
       document.removeEventListener('click', _outsideClickHandler);
@@ -1117,17 +1019,11 @@ var DVIRApp = (function() {
   // ── Public API ────────────────────────────────────────────────────────────────
 
   return {
-    init:             init,
-    run:              run,
-    switchTab:        switchTab,
-    filter:           filter,
-    filterAny:        filterAny,
-    prevPage:         prevPage,
-    nextPage:         nextPage,
-    exportCSV:        exportCSV,
-    groupNav:         groupNav,
-    groupSelect:      groupSelect,
-    toggleGroupPanel: toggleGroupPanel
+    init: init, run: run, switchTab: switchTab,
+    filter: filter, filterAny: filterAny,
+    prevPage: prevPage, nextPage: nextPage,
+    exportCSV: exportCSV,
+    groupNav: groupNav, groupSelect: groupSelect, toggleGroupPanel: toggleGroupPanel
   };
 
 }());
